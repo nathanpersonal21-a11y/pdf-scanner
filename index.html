@@ -1,1075 +1,295 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111827">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Scanner">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<title>PDF Scanner</title>
-<style>
-:root{--bg:#0f172a;--panel:#1e293b;--line:#334155;--text:#f1f5f9;--muted:#94a3b8;--accent:#38bdf8;--danger:#f87171;--ok:#4ade80}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overscroll-behavior:none}
-body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
-header{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
-header h1{font-size:18px;margin:0;flex:1}
-header span{color:var(--muted);font-size:13px}
-header button{flex:0 0 auto;padding:6px 10px;font-size:13px}
-main{flex:1;overflow:auto;padding:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative;cursor:pointer}
-.card img{width:100%;aspect-ratio:3/4;object-fit:contain;background:#fff;display:block}
-.card b{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);border-radius:6px;padding:1px 7px;font-size:12px}
-.card i{position:absolute;bottom:6px;left:6px;right:6px;background:rgba(180,83,9,.92);border-radius:6px;padding:2px 6px;font-size:11px;font-style:normal;text-align:center}
-.empty{text-align:center;color:var(--muted);margin-top:16vh;padding:0 24px}
-.empty big{display:block;font-size:46px;margin-bottom:8px}
-nav{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
-button{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 10px;flex:1;cursor:pointer;touch-action:manipulation}
-button.primary{background:var(--accent);color:#04202e;border-color:var(--accent);font-weight:600}
-button.danger{color:var(--danger)}
-button.sel{border-color:var(--accent);color:var(--accent)}
-button:disabled{opacity:.4}
-.overlay{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:10;padding-top:env(safe-area-inset-top)}
-.overlay.on{display:flex}
-#crop{z-index:11}
-.topbar{display:flex;align-items:center;gap:8px;padding:8px 12px}
-.topbar .t{flex:1;text-align:center;color:var(--muted);font-size:14px}
-.topbar button{flex:0 0 auto;padding:8px 14px}
-.stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.stage.zoomed{display:block;overflow:auto;-webkit-overflow-scrolling:touch}
-#prevCanvas{width:100%;height:100%;object-fit:contain;display:block}
-.stage.zoomed #prevCanvas{height:auto;object-fit:fill}
-.nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:72px;padding:0;background:rgba(0,0,0,.45);border:none;font-size:26px;z-index:2}
-.nav.l{left:0;border-radius:0 10px 10px 0}.nav.r{right:0;border-radius:10px 0 0 10px}
-.stage.zoomed .nav{display:none}
-.bar{display:flex;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));flex-wrap:nowrap}
-.bar.mid{padding-bottom:0}
-.bar button{min-width:0;padding:11px 4px;font-size:14px}
-#vid{max-width:100%;max-height:100%}
-#live{position:absolute;pointer-events:none}
-.hint{position:absolute;top:10px;left:0;right:0;text-align:center;z-index:3}
-.hint span{background:rgba(0,0,0,.6);border-radius:14px;padding:4px 12px;font-size:13px}
-.hint span.ok{color:var(--ok)}
-.shutter{flex:0 0 72px;height:72px;border-radius:50%;background:#fff;border:5px solid var(--accent);padding:0}
-.shutter:active{transform:scale(.94)}
-.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:4;transition:opacity .25s}
-#cropCanvas{touch-action:none;display:block}
-#loupe{position:absolute;top:8px;width:120px;height:120px;border-radius:50%;border:2px solid var(--accent);background:#000;display:none;pointer-events:none;z-index:3}
-.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#000d;padding:8px 14px;border-radius:8px;font-size:14px;display:none;z-index:30;max-width:90vw;text-align:center}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Strict policy: only files from this origin may load; nothing can talk to another server. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; media-src 'self' blob:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Scan documents to PDF with your phone camera. Works offline. Nothing leaves your device.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Scanner">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Offline PDF Scanner</title>
 </head>
 <body>
-<header><h1>PDF Scanner</h1><span id="count"></span><button id="btnClear" hidden>Clear</button></header>
-<main>
-  <div id="grid" class="grid"></div>
-  <div id="empty" class="empty"><big>📄</big>Tap <b>Camera</b> to scan a page, or <b>Import</b> to add photos.<br>Page edges are found automatically — you can always drag the corners yourself.<br><br>Everything stays on your device and works offline.</div>
+
+<!-- Icon sprite (inline, so no extra requests) -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
+  <symbol id="i-rotate-cw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v16h16M2 6h16v16"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></symbol>
+  <symbol id="i-flash" viewBox="0 0 24 24"><path d="M13 2L5 14h6l-1 8 8-12h-6z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4M5 13v7h14v-7"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
+  <symbol id="i-page" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="1.5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<header id="bar">
+  <nav id="steps" aria-label="Steps">
+    <button type="button" data-go="scan"><b>1</b><span>Scan</span></button>
+    <button type="button" data-go="review"><b>2</b><span>Review</span></button>
+    <button type="button" data-go="export"><b>3</b><span>Export</span></button>
+  </nav>
+  <span id="net" class="net" hidden>Offline · still works</span>
+  <button type="button" id="btn-privacy" class="icon-btn" aria-label="Privacy, storage and install">
+    <svg class="ic"><use href="#i-shield"/></svg>
+  </button>
+</header>
+
+<main id="main">
+
+  <!-- 1. SCAN -->
+  <section id="screen-scan" class="screen scan dark" hidden>
+    <div class="viewport">
+      <video id="video" playsinline muted autoplay></video>
+      <svg id="overlay" class="overlay" viewBox="0 0 1 1" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <polygon id="overlay-poly" points=""/>
+      </svg>
+      <div id="flash" class="flash"></div>
+      <div class="vp-tools">
+        <button type="button" id="btn-torch" class="round-btn" aria-label="Toggle flash" aria-pressed="false" hidden>
+          <svg class="ic"><use href="#i-flash"/></svg>
+        </button>
+        <button type="button" id="btn-photos" class="round-btn" aria-label="Add photos from your library">
+          <svg class="ic"><use href="#i-image"/></svg>
+        </button>
+      </div>
+      <div id="retake-banner" class="banner" hidden>
+        <span>Retaking page <b id="retake-n"></b></span>
+        <button type="button" id="retake-cancel">Cancel</button>
+      </div>
+      <div id="cam-msg" class="cam-msg" hidden>
+        <h2 id="cam-msg-title"></h2>
+        <p id="cam-msg-text"></p>
+        <button type="button" id="cam-retry" class="primary">Try camera again</button>
+        <button type="button" id="cam-pick" class="secondary">Choose photos instead</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" id="scan-mode" role="group" aria-label="Filter for new pages">
+        <button type="button" data-mode="color" aria-pressed="true">Color</button>
+        <button type="button" data-mode="gray" aria-pressed="false">Gray</button>
+        <button type="button" data-mode="bw" aria-pressed="false">B&amp;W</button>
+      </div>
+      <div class="shutter-row">
+        <button type="button" id="btn-thumb" class="thumb-btn" aria-label="Review pages" disabled>
+          <img id="last-thumb" alt="">
+          <span id="count-badge">0</span>
+        </button>
+        <button type="button" id="btn-shutter" class="shutter" aria-label="Capture page"></button>
+        <button type="button" id="btn-done" class="done-btn" disabled>
+          <svg class="ic"><use href="#i-check"/></svg><span>Done</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. REVIEW -->
+  <section id="screen-review" class="screen page" hidden>
+    <div class="scroll">
+      <div class="head">
+        <h1>Review pages</h1>
+        <p id="review-sub" class="muted"></p>
+      </div>
+      <div class="row-label">Filter for all pages</div>
+      <div class="seg wide" id="review-mode" role="group" aria-label="Filter for all pages">
+        <button type="button" data-mode="color" aria-pressed="false">Color</button>
+        <button type="button" data-mode="gray" aria-pressed="false">Gray</button>
+        <button type="button" data-mode="bw" aria-pressed="false">B&amp;W</button>
+      </div>
+      <div id="grid" class="grid"></div>
+      <div id="empty" class="empty" hidden>
+        <p>No pages yet.</p>
+        <button type="button" id="empty-scan" class="primary">Scan a page</button>
+      </div>
+    </div>
+    <div class="actionbar">
+      <button type="button" id="btn-add" class="secondary big"><svg class="ic"><use href="#i-plus"/></svg>Add page</button>
+      <button type="button" id="btn-export" class="primary big">Export PDF<svg class="ic"><use href="#i-arrow"/></svg></button>
+    </div>
+  </section>
+
+  <!-- Page editor -->
+  <section id="screen-edit" class="screen edit dark" hidden>
+    <div class="edit-head">
+      <button type="button" id="edit-back" class="head-btn"><svg class="ic"><use href="#i-left"/></svg>Pages</button>
+      <div class="edit-nav">
+        <button type="button" id="edit-prev" class="icon-btn" aria-label="Previous page"><svg class="ic"><use href="#i-left"/></svg></button>
+        <span id="edit-title">Page 1 of 1</span>
+        <button type="button" id="edit-next" class="icon-btn" aria-label="Next page"><svg class="ic"><use href="#i-right"/></svg></button>
+      </div>
+      <span class="head-spacer"></span>
+    </div>
+    <div class="stage">
+      <div class="stage-inner" id="stage-inner">
+        <div id="preview-wrap" class="fit">
+          <canvas id="preview-canvas"></canvas>
+          <div id="busy" class="busy" hidden><div class="spinner"></div></div>
+        </div>
+        <div id="crop-wrap" class="fit" hidden>
+          <img id="crop-img" alt="Original photo for cropping" draggable="false">
+          <svg id="crop-svg" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polygon id="crop-poly" points=""/></svg>
+          <div class="handle" data-i="0" role="slider" aria-label="Top-left corner"></div>
+          <div class="handle" data-i="1" role="slider" aria-label="Top-right corner"></div>
+          <div class="handle" data-i="2" role="slider" aria-label="Bottom-right corner"></div>
+          <div class="handle" data-i="3" role="slider" aria-label="Bottom-left corner"></div>
+        </div>
+      </div>
+    </div>
+    <div id="tools-view" class="tools">
+      <div class="seg" id="edit-mode" role="group" aria-label="Filter for this page">
+        <button type="button" data-mode="color" aria-pressed="false">Color</button>
+        <button type="button" data-mode="gray" aria-pressed="false">Gray</button>
+        <button type="button" data-mode="bw" aria-pressed="false">B&amp;W</button>
+      </div>
+      <div class="tool-row">
+        <button type="button" id="t-crop" class="tool"><svg class="ic"><use href="#i-crop"/></svg><span>Crop</span></button>
+        <button type="button" id="t-rot-l" class="tool"><svg class="ic"><use href="#i-rotate-ccw"/></svg><span>Rotate</span></button>
+        <button type="button" id="t-rot-r" class="tool"><svg class="ic"><use href="#i-rotate-cw"/></svg><span>Rotate</span></button>
+        <button type="button" id="t-retake" class="tool"><svg class="ic"><use href="#i-camera"/></svg><span>Retake</span></button>
+        <button type="button" id="t-delete" class="tool danger-text"><svg class="ic"><use href="#i-trash"/></svg><span>Delete</span></button>
+      </div>
+    </div>
+    <div id="tools-crop" class="tools" hidden>
+      <p class="crop-hint">Drag the corners onto the page corners.</p>
+      <div class="tool-row">
+        <button type="button" id="c-auto" class="tool"><svg class="ic"><use href="#i-frame"/></svg><span>Auto-detect</span></button>
+        <button type="button" id="c-full" class="tool"><svg class="ic"><use href="#i-page"/></svg><span>Full photo</span></button>
+        <button type="button" id="c-cancel" class="tool"><svg class="ic"><use href="#i-left"/></svg><span>Cancel</span></button>
+        <button type="button" id="c-apply" class="tool accent-text"><svg class="ic"><use href="#i-check"/></svg><span>Apply</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. EXPORT -->
+  <section id="screen-export" class="screen page" hidden>
+    <div class="scroll narrow">
+      <div class="head">
+        <h1>Export PDF</h1>
+        <p id="export-summary" class="muted"></p>
+      </div>
+
+      <div id="export-form">
+        <label for="pdf-name" class="row-label">File name</label>
+        <div class="name-row">
+          <input id="pdf-name" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="80">
+          <span>.pdf</span>
+        </div>
+
+        <div class="row-label">Quality</div>
+        <div class="quality" id="quality" role="radiogroup" aria-label="PDF quality">
+          <button type="button" role="radio" data-q="small" aria-checked="false"><b>Small</b><span>Smallest file</span></button>
+          <button type="button" role="radio" data-q="standard" aria-checked="true"><b>Standard</b><span>Good for most</span></button>
+          <button type="button" role="radio" data-q="high" aria-checked="false"><b>High</b><span>Sharpest text</span></button>
+        </div>
+
+        <button type="button" id="btn-create" class="primary big full">Create PDF</button>
+      </div>
+
+      <div id="progress" class="progress" hidden>
+        <progress id="prog" max="1" value="0"></progress>
+        <p id="prog-text" class="muted"></p>
+      </div>
+
+      <div id="export-error" class="error" role="alert" hidden></div>
+
+      <div id="result" hidden>
+        <div class="result-card">
+          <svg class="ic ok"><use href="#i-check"/></svg>
+          <div>
+            <strong id="res-name"></strong>
+            <span id="res-meta" class="muted"></span>
+          </div>
+        </div>
+        <button type="button" id="btn-download" class="primary big full"><svg class="ic"><use href="#i-download"/></svg>Download PDF</button>
+        <button type="button" id="btn-share" class="secondary big full" hidden><svg class="ic"><use href="#i-share"/></svg>Share / Save to Files</button>
+        <p id="save-hint" class="hint"></p>
+        <button type="button" id="btn-edit-again" class="link">Change name, quality or pages</button>
+        <button type="button" id="btn-new" class="outline-danger full">Start new scan</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacy / storage / install -->
+  <section id="screen-privacy" class="screen page" hidden>
+    <div class="scroll narrow">
+      <div class="head"><h1>Privacy &amp; install</h1></div>
+
+      <div class="card-block">
+        <h2>Your scans stay on this device</h2>
+        <p>Photos are processed and turned into PDFs entirely inside this page. Nothing is uploaded, and there are no accounts, analytics, ads or trackers. The app can't contact other servers.</p>
+      </div>
+
+      <div class="card-block">
+        <h2>Offline status</h2>
+        <p id="offline-status">Checking…</p>
+        <p class="muted small">The first visit needs an internet connection to download the app. After that it opens and works in airplane mode.</p>
+      </div>
+
+      <div class="card-block">
+        <h2>Install</h2>
+        <p id="install-status"></p>
+        <button type="button" id="btn-install" class="primary" hidden>Install app</button>
+        <div id="install-help" class="small"></div>
+      </div>
+
+      <div class="card-block">
+        <h2>Saved scans</h2>
+        <p id="storage-info">…</p>
+        <p class="muted small">Unfinished scans are kept in this browser's storage so you can recover them if you close the app. Clearing browser data or uninstalling the app can delete them. Finished PDFs you downloaded are separate files and are not affected.</p>
+        <button type="button" id="btn-clear" class="outline-danger">Delete all saved scans</button>
+      </div>
+
+      <p class="muted small center">Offline PDF Scanner <span id="version"></span></p>
+    </div>
+    <div class="actionbar">
+      <button type="button" id="privacy-back" class="secondary big full">Back</button>
+    </div>
+  </section>
+
 </main>
-<nav>
-  <button id="btnCam">📷 Camera</button>
-  <button id="btnImp">🖼 Import</button>
-  <button id="btnPdf" class="primary" disabled>Save PDF</button>
-</nav>
-<input id="file" type="file" accept="image/*" multiple hidden>
 
-<!-- camera -->
-<div id="cam" class="overlay">
-  <div class="stage" id="camStage"><video id="vid" playsinline muted></video><canvas id="live"></canvas><div class="hint"><span id="camHint">Looking for the page…</span></div><div id="flash" class="flash"></div></div>
-  <div class="bar" style="align-items:center">
-    <button id="camClose" style="flex:0 0 84px">Done</button>
-    <button id="torch" style="flex:0 0 60px" hidden>🔦</button>
-    <span style="flex:1"></span>
-    <button id="shutter" class="shutter" aria-label="Capture page"></button>
-    <span style="flex:1"></span>
-    <span id="camCount" style="flex:0 0 84px;text-align:center;color:var(--muted);font-size:14px">0 pages</span>
-  </div>
+<div id="loading" class="loading" hidden role="alert" aria-live="assertive">
+  <div class="spinner big"></div>
+  <p id="loading-text">Working…</p>
 </div>
 
-<!-- page editor -->
-<div id="edit" class="overlay">
-  <div class="topbar"><button id="editClose" class="primary">Done</button><span class="t" id="editTitle"></span><button id="editCrop">✂ Crop</button></div>
-  <div class="stage" id="editStage">
-    <button class="nav l" id="prevPg" aria-label="Previous page">‹</button><button class="nav r" id="nextPg" aria-label="Next page">›</button>
-    <canvas id="prevCanvas"></canvas>
-  </div>
-  <div class="bar mid">
-    <button data-f="auto">Auto</button><button data-f="original">Original</button><button data-f="gray">Gray</button><button data-f="bw">B&amp;W</button>
-  </div>
-  <div class="bar">
-    <button id="rotL" aria-label="Rotate left">⟲</button><button id="rotR" aria-label="Rotate right">⟳</button>
-    <button id="mvL" aria-label="Move earlier">◀ Move</button><button id="mvR" aria-label="Move later">Move ▶</button>
-    <button id="del" class="danger">Delete</button>
-  </div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden>
+  <span id="toast-text"></span>
+  <button type="button" id="toast-action" hidden></button>
 </div>
 
-<!-- corner editor -->
-<div id="crop" class="overlay">
-  <div class="topbar"><button id="cropCancel">Cancel</button><span class="t">Drag the corners to the page edges</span><button id="cropApply" class="primary">Apply</button></div>
-  <div class="stage" id="cropStage"><canvas id="cropCanvas"></canvas><canvas id="loupe" width="240" height="240"></canvas></div>
-  <div class="bar"><button id="cropAuto">✨ Auto-detect</button><button id="cropFull">Whole photo</button></div>
-</div>
-<div id="toast" class="toast"></div>
+<dialog id="dlg">
+  <h2 id="dlg-title"></h2>
+  <p id="dlg-text"></p>
+  <div class="dlg-row">
+    <button type="button" id="dlg-cancel" class="secondary">Cancel</button>
+    <button type="button" id="dlg-ok" class="danger">OK</button>
+  </div>
+</dialog>
 
-<script>
-'use strict';
-/* ==== CV BEGIN ==== */
-const CV = (() => {
-  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+<input id="file-input" type="file" accept="image/*" multiple hidden>
 
-  /* ---------- basic image ops ---------- */
-  function boxBlur(src, w, h, r) {
-    const tmp = new Float32Array(w * h), out = new Float32Array(w * h), k = 2 * r + 1;
-    for (let y = 0; y < h; y++) {
-      const o = y * w; let acc = 0;
-      for (let x = -r; x <= r; x++) acc += src[o + clamp(x, 0, w - 1)];
-      for (let x = 0; x < w; x++) {
-        tmp[o + x] = acc / k;
-        acc += src[o + Math.min(w - 1, x + r + 1)] - src[o + Math.max(0, x - r)];
-      }
-    }
-    for (let x = 0; x < w; x++) {
-      let acc = 0;
-      for (let y = -r; y <= r; y++) acc += tmp[clamp(y, 0, h - 1) * w + x];
-      for (let y = 0; y < h; y++) {
-        out[y * w + x] = acc / k;
-        acc += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
-      }
-    }
-    return out;
-  }
-
-  function otsu(vals, n) {
-    const hist = new Float64Array(256);
-    for (let i = 0; i < n; i++) hist[clamp(vals[i] | 0, 0, 255)]++;
-    let sum = 0;
-    for (let t = 0; t < 256; t++) sum += t * hist[t];
-    let wB = 0, sumB = 0, best = -1, thr = 127;
-    for (let t = 0; t < 256; t++) {
-      wB += hist[t];
-      if (!wB) continue;
-      const wF = n - wB;
-      if (!wF) break;
-      sumB += t * hist[t];
-      const mB = sumB / wB, mF = (sum - sumB) / wF;
-      const v = wB * wF * (mB - mF) * (mB - mF);
-      if (v > best) { best = v; thr = t; }
-    }
-    return thr;
-  }
-
-  function morph(m, w, h, r, erode) {
-    const f = new Float32Array(w * h);
-    for (let i = 0; i < f.length; i++) f[i] = m[i];
-    const b = boxBlur(f, w, h, r), o = new Uint8Array(w * h);
-    if (erode) for (let i = 0; i < o.length; i++) o[i] = b[i] > 0.999 ? 1 : 0;
-    else for (let i = 0; i < o.length; i++) o[i] = b[i] > 0.001 ? 1 : 0;
-    return o;
-  }
-
-  // Anything in the mask background that cannot reach the image border becomes foreground
-  function fillHoles(mask, w, h) {
-    const outside = new Uint8Array(w * h), q = new Int32Array(w * h);
-    let qh = 0, qt = 0;
-    const push = i => { if (!mask[i] && !outside[i]) { outside[i] = 1; q[qt++] = i; } };
-    for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
-    for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
-    while (qh < qt) {
-      const i = q[qh++], x = i % w, y = (i / w) | 0;
-      if (x > 0) push(i - 1);
-      if (x < w - 1) push(i + 1);
-      if (y > 0) push(i - w);
-      if (y < h - 1) push(i + w);
-    }
-    const out = new Uint8Array(w * h);
-    for (let i = 0; i < out.length; i++) out[i] = outside[i] ? 0 : 1;
-    return out;
-  }
-
-  function components(m, w, h, minArea, keep) {
-    const lab = new Int32Array(w * h), q = new Int32Array(w * h), areas = [0];
-    let nl = 0;
-    for (let s = 0; s < w * h; s++) {
-      if (!m[s] || lab[s]) continue;
-      nl++;
-      let qh = 0, qt = 0;
-      q[qt++] = s; lab[s] = nl;
-      while (qh < qt) {
-        const i = q[qh++], x = i % w, y = (i / w) | 0;
-        if (x > 0 && m[i - 1] && !lab[i - 1]) { lab[i - 1] = nl; q[qt++] = i - 1; }
-        if (x < w - 1 && m[i + 1] && !lab[i + 1]) { lab[i + 1] = nl; q[qt++] = i + 1; }
-        if (y > 0 && m[i - w] && !lab[i - w]) { lab[i - w] = nl; q[qt++] = i - w; }
-        if (y < h - 1 && m[i + w] && !lab[i + w]) { lab[i + w] = nl; q[qt++] = i + w; }
-      }
-      areas.push(qt);
-    }
-    const ids = [];
-    for (let l = 1; l <= nl; l++) if (areas[l] >= minArea) ids.push(l);
-    ids.sort((a, b) => areas[b] - areas[a]);
-    return { lab, list: ids.slice(0, keep).map(id => ({ id, area: areas[id] })) };
-  }
-
-  function boundaryPoints(lab, id, w, h) {
-    const pts = [];
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (lab[i] !== id) continue;
-        if (x === 0 || y === 0 || x === w - 1 || y === h - 1 ||
-            lab[i - 1] !== id || lab[i + 1] !== id || lab[i - w] !== id || lab[i + w] !== id) {
-          pts.push([x + 0.5, y + 0.5]);
-        }
-      }
-    }
-    return pts;
-  }
-
-  /* ---------- geometry ---------- */
-  function convexHull(points) {
-    const pts = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    if (pts.length < 3) return pts;
-    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-    const lower = [];
-    for (const p of pts) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
-    const upper = [];
-    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
-    lower.pop(); upper.pop();
-    return lower.concat(upper);
-  }
-
-  // Visvalingam-style: repeatedly drop the vertex whose removal loses the least area
-  function reduceHull(hull, k) {
-    const pts = hull.slice();
-    while (pts.length > k) {
-      let bi = 0, ba = Infinity;
-      const n = pts.length;
-      for (let i = 0; i < n; i++) {
-        const a = pts[(i + n - 1) % n], b = pts[i], c = pts[(i + 1) % n];
-        const ar = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2;
-        if (ar < ba) { ba = ar; bi = i; }
-      }
-      pts.splice(bi, 1);
-    }
-    return pts;
-  }
-
-  function polyArea(p) {
-    let s = 0;
-    for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; s += a[0] * b[1] - b[0] * a[1]; }
-    return Math.abs(s) / 2;
-  }
-
-  function isConvex(q) {
-    let sign = 0;
-    for (let i = 0; i < q.length; i++) {
-      const a = q[i], b = q[(i + 1) % q.length], c = q[(i + 2) % q.length];
-      const z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
-      if (Math.abs(z) < 1e-9) return false;
-      const s = z > 0 ? 1 : -1;
-      if (sign && s !== sign) return false;
-      sign = s;
-    }
-    return true;
-  }
-
-  function orderQuad(q) {
-    const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
-    const s = q.slice().sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
-    let start = 0, best = Infinity;
-    for (let i = 0; i < 4; i++) { const v = s[i][0] + s[i][1]; if (v < best) { best = v; start = i; } }
-    return [s[start], s[(start + 1) % 4], s[(start + 2) % 4], s[(start + 3) % 4]]; // tl, tr, br, bl
-  }
-
-  function fitLine(pts) {
-    let cx = 0, cy = 0;
-    for (const p of pts) { cx += p[0]; cy += p[1]; }
-    cx /= pts.length; cy /= pts.length;
-    let sxx = 0, sxy = 0, syy = 0;
-    for (const p of pts) { const dx = p[0] - cx, dy = p[1] - cy; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; }
-    const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-    return { x: cx, y: cy, dx: Math.cos(ang), dy: Math.sin(ang) };
-  }
-
-  function intersect(l1, l2) {
-    const det = l1.dx * l2.dy - l1.dy * l2.dx;
-    if (Math.abs(det) < 1e-6) return null;
-    const t = ((l2.x - l1.x) * l2.dy - (l2.y - l1.y) * l2.dx) / det;
-    return [l1.x + t * l1.dx, l1.y + t * l1.dy];
-  }
-
-  // Re-fit each side of the quad to the blob outline and intersect neighbours: sharp, accurate corners
-  function refineQuad(quad, bpts, diag) {
-    const lines = [];
-    for (let i = 0; i < 4; i++) {
-      const A = quad[i], B = quad[(i + 1) % 4];
-      const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy);
-      if (L < 4) return quad;
-      const ux = dx / L, uy = dy / L, tol = Math.max(2, diag * 0.012);
-      const sel = [];
-      for (const p of bpts) {
-        const t = ((p[0] - A[0]) * ux + (p[1] - A[1]) * uy) / L;
-        if (t < 0.08 || t > 0.92) continue;
-        const d = Math.abs(-(p[0] - A[0]) * uy + (p[1] - A[1]) * ux);
-        if (d <= tol) sel.push(p);
-      }
-      if (sel.length < Math.max(8, L * 0.35)) return quad;
-      lines.push(fitLine(sel));
-    }
-    const out = [];
-    for (let i = 0; i < 4; i++) {
-      const P = intersect(lines[(i + 3) % 4], lines[i]);
-      if (!P) return quad;
-      if (Math.hypot(P[0] - quad[i][0], P[1] - quad[i][1]) > diag * 0.07) return quad;
-      out.push(P);
-    }
-    return out;
-  }
-
-  function scoreQuad(q, compArea, w, h) {
-    const area = polyArea(q), a = area / (w * h);
-    if (a < 0.1) return 0;
-    if (!isConvex(q)) return 0;
-    let minAng = 180, maxAng = 0;
-    for (let i = 0; i < 4; i++) {
-      const p = q[(i + 3) % 4], c = q[i], n = q[(i + 1) % 4];
-      const v1 = [p[0] - c[0], p[1] - c[1]], v2 = [n[0] - c[0], n[1] - c[1]];
-      const ang = Math.acos(clamp((v1[0] * v2[0] + v1[1] * v2[1]) / (Math.hypot(...v1) * Math.hypot(...v2) + 1e-9), -1, 1)) * 180 / Math.PI;
-      minAng = Math.min(minAng, ang); maxAng = Math.max(maxAng, ang);
-    }
-    if (minAng < 50 || maxAng > 130) return 0;
-    const side = i => Math.hypot(q[(i + 1) % 4][0] - q[i][0], q[(i + 1) % 4][1] - q[i][1]);
-    const s = [side(0), side(1), side(2), side(3)];
-    if (Math.min(s[0], s[2]) / Math.max(s[0], s[2]) < 0.45 || Math.min(s[1], s[3]) / Math.max(s[1], s[3]) < 0.45) return 0;
-    if (Math.min(...s) < 0.12 * Math.max(...s)) return 0;
-    const r = compArea / area, fit = r > 1 ? 1 / r : r;
-    if (fit < 0.78) return 0;
-    if (a > 0.97) return 0; // "whole frame" is the fallback, not a detection
-    return fit * fit * fit * (0.6 + Math.min(a, 0.9));
-  }
-
-  /* ---------- candidate masks ---------- */
-  function colourMask(d, w, h) {
-    const bw = Math.max(2, Math.round(Math.min(w, h) * 0.05)), R = [], G = [], B = [];
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (x < bw || x >= w - bw || y < bw || y >= h - bw) { const j = (y * w + x) * 4; R.push(d[j]); G.push(d[j + 1]); B.push(d[j + 2]); }
-      }
-    }
-    const med = a => { const t = Float32Array.from(a).sort(); return t[t.length >> 1]; };
-    const mr = med(R), mg = med(G), mb = med(B), n = w * h;
-    const dist = new Float32Array(n);
-    for (let i = 0, j = 0; i < n; i++, j += 4) dist[i] = Math.min(255, Math.hypot(d[j] - mr, d[j + 1] - mg, d[j + 2] - mb));
-    const ds = boxBlur(dist, w, h, 1), t = otsu(ds, n);
-    if (t < 16) return null;
-    const m = new Uint8Array(n);
-    for (let i = 0; i < n; i++) m[i] = ds[i] > t ? 1 : 0;
-    return m;
-  }
-
-  function edgeMask(g, w, h, low) {
-    const n = w * h, mag = new Float32Array(n);
-    let s = 0, s2 = 0, c = 0;
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const i = y * w + x;
-        const gx = (g[i - w + 1] + 2 * g[i + 1] + g[i + w + 1]) - (g[i - w - 1] + 2 * g[i - 1] + g[i + w - 1]);
-        const gy = (g[i + w - 1] + 2 * g[i + w] + g[i + w + 1]) - (g[i - w - 1] + 2 * g[i - w] + g[i - w + 1]);
-        const m = Math.abs(gx) + Math.abs(gy);
-        mag[i] = m; s += m; s2 += m * m; c++;
-      }
-    }
-    const mean = s / c, sd = Math.sqrt(Math.max(0, s2 / c - mean * mean));
-    const thr = low ? Math.max(26, 0.5 * (mean + sd)) : Math.max(60, mean + sd);
-    const e = new Uint8Array(n);
-    for (let i = 0; i < n; i++) e[i] = mag[i] > thr ? 1 : 0;
-    const r = Math.max(1, Math.round(Math.min(w, h) * 0.006));
-    const filled = fillHoles(morph(e, w, h, r, false), w, h);
-    return morph(filled, w, h, r + 2, true);
-  }
-
-  /* ---------- document detection ---------- */
-  // d: RGBA bytes of a small image. Returns { quad:[tl,tr,br,bl] in pixel coords, score } or null.
-  function detectQuad(d, w, h) {
-    const n = w * h, diag = Math.hypot(w, h);
-    const g0 = new Float32Array(n);
-    for (let i = 0, j = 0; i < n; i++, j += 4) g0[i] = d[j] * 0.299 + d[j + 1] * 0.587 + d[j + 2] * 0.114;
-    const g = boxBlur(boxBlur(g0, w, h, 1), w, h, 1);
-
-    const masks = [];
-    const t = otsu(g, n), bright = new Uint8Array(n);
-    for (let i = 0; i < n; i++) bright[i] = g[i] > t ? 1 : 0;
-    masks.push({ m: bright, trust: 1 });
-    const cm = colourMask(d, w, h);
-    if (cm) masks.push({ m: cm, trust: 1 });
-    masks.push({ m: edgeMask(g, w, h, false), trust: 0.92 });
-    masks.push({ m: edgeMask(g, w, h, true), trust: 0.88 });
-
-    const openR = Math.max(1, Math.round(Math.min(w, h) * 0.008));
-    let best = null;
-    for (const { m: raw, trust } of masks) {
-      let m = fillHoles(raw, w, h);
-      m = morph(morph(m, w, h, openR, true), w, h, openR, false);
-      const { lab, list } = components(m, w, h, n * 0.08, 2);
-      for (const comp of list) {
-        const bpts = boundaryPoints(lab, comp.id, w, h);
-        const hull = convexHull(bpts);
-        if (hull.length < 4) continue;
-        let quad = reduceHull(hull, 4);
-        quad = refineQuad(quad, bpts, diag);
-        quad = orderQuad(quad.map(p => [clamp(p[0], 0, w), clamp(p[1], 0, h)]));
-        let touch = 0;
-        for (const p of bpts) if (p[0] < 1.5 || p[1] < 1.5 || p[0] > w - 1.5 || p[1] > h - 1.5) touch++;
-        touch /= bpts.length;
-        const sc = scoreQuad(quad, comp.area, w, h) * trust * Math.max(0, 1 - 1.6 * touch);
-        if (sc > 0 && (!best || sc > best.score)) best = { quad, score: sc };
-      }
-    }
-    return best && best.score >= 0.38 ? best : null;
-  }
-
-  /* ---------- perspective warp ---------- */
-  function quadSize(q) {
-    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-    return [(dist(q[0], q[1]) + dist(q[3], q[2])) / 2, (dist(q[0], q[3]) + dist(q[1], q[2])) / 2];
-  }
-
-  // Solve for H mapping rectangle (u,v) -> source (x,y)
-  function solveH(src, dst) {
-    const A = [], b = [];
-    for (let i = 0; i < 4; i++) {
-      const [u, v] = dst[i], [x, y] = src[i];
-      A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]); b.push(x);
-      A.push([0, 0, 0, u, v, 1, -u * y, -v * y]); b.push(y);
-    }
-    const n = 8;
-    for (let i = 0; i < n; i++) {
-      let p = i;
-      for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
-      [A[i], A[p]] = [A[p], A[i]]; [b[i], b[p]] = [b[p], b[i]];
-      const piv = A[i][i];
-      if (Math.abs(piv) < 1e-12) return null;
-      for (let r = i + 1; r < n; r++) {
-        const f = A[r][i] / piv;
-        if (!f) continue;
-        for (let c = i; c < n; c++) A[r][c] -= f * A[i][c];
-        b[r] -= f * b[i];
-      }
-    }
-    const x = new Array(n);
-    for (let i = n - 1; i >= 0; i--) {
-      let s = b[i];
-      for (let c = i + 1; c < n; c++) s -= A[i][c] * x[c];
-      x[i] = s / A[i][i];
-    }
-    return x;
-  }
-
-  // sd: RGBA source, q: quad in source pixel coords (tl,tr,br,bl). Returns RGBA ow*oh.
-  function warp(sd, sw, sh, q, ow, oh) {
-    const H = solveH(q, [[0, 0], [ow, 0], [ow, oh], [0, oh]]);
-    if (!H) return null;
-    const [a, b, c, d, e, f, g, hh] = H;
-    const out = new Uint8ClampedArray(ow * oh * 4), mx = sw - 1, my = sh - 1;
-    for (let j = 0; j < oh; j++) {
-      const v = j + 0.5;
-      for (let i = 0; i < ow; i++) {
-        const u = i + 0.5, den = g * u + hh * v + 1;
-        let x = (a * u + b * v + c) / den - 0.5, y = (d * u + e * v + f) / den - 0.5;
-        x = x < 0 ? 0 : x > mx ? mx : x; y = y < 0 ? 0 : y > my ? my : y;
-        const x0 = x | 0, y0 = y | 0, x1 = x0 < mx ? x0 + 1 : x0, y1 = y0 < my ? y0 + 1 : y0;
-        const fx = x - x0, fy = y - y0, w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
-        const i00 = (y0 * sw + x0) * 4, i10 = (y0 * sw + x1) * 4, i01 = (y1 * sw + x0) * 4, i11 = (y1 * sw + x1) * 4, o = (j * ow + i) * 4;
-        out[o] = sd[i00] * w00 + sd[i10] * w10 + sd[i01] * w01 + sd[i11] * w11;
-        out[o + 1] = sd[i00 + 1] * w00 + sd[i10 + 1] * w10 + sd[i01 + 1] * w01 + sd[i11 + 1] * w11;
-        out[o + 2] = sd[i00 + 2] * w00 + sd[i10 + 2] * w10 + sd[i01 + 2] * w01 + sd[i11 + 2] * w11;
-        out[o + 3] = 255;
-      }
-    }
-    return out;
-  }
-
-  /* ---------- readability filters ---------- */
-  function sharpenF(v, w, h, a) {
-    const src = Float32Array.from(v);
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const i = y * w + x;
-        v[i] = src[i] * (1 + 4 * a) - a * (src[i - 1] + src[i + 1] + src[i - w] + src[i + w]);
-      }
-    }
-  }
-  function sharpenRGBA(px, w, h, a) {
-    const src = px.slice(), st = w * 4;
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const j = (y * w + x) * 4;
-        for (let ch = 0; ch < 3; ch++) {
-          const k = j + ch;
-          px[k] = src[k] * (1 + 4 * a) - a * (src[k - 4] + src[k + 4] + src[k - st] + src[k + st]);
-        }
-      }
-    }
-  }
-
-  // Modes: original | auto (colour, shadows removed) | gray | bw. Edits px in place.
-  function filterImage(px, w, h, mode) {
-    if (mode === 'original') return;
-    const n = w * h, L = new Float32Array(n);
-    for (let i = 0, j = 0; i < n; i++, j += 4) L[i] = px[j] * 0.299 + px[j + 1] * 0.587 + px[j + 2] * 0.114;
-
-    // paper brightness map: per-cell maximum (ignores text), smoothed, then interpolated
-    const B = Math.max(6, Math.round(Math.max(w, h) / 50)), gw = Math.ceil(w / B), gh = Math.ceil(h / B);
-    const Lb = boxBlur(L, w, h, 1);
-    let grid = new Float32Array(gw * gh);
-    for (let y = 0; y < h; y++) {
-      const row = ((y / B) | 0) * gw;
-      for (let x = 0; x < w; x++) { const ci = row + ((x / B) | 0), v = Lb[y * w + x]; if (v > grid[ci]) grid[ci] = v; }
-    }
-    grid = boxBlur(boxBlur(grid, gw, gh, 1), gw, gh, 1);
-    const sorted = Float32Array.from(grid).sort();
-    const floorV = Math.max(40, 0.55 * sorted[Math.floor(sorted.length * 0.9)]);
-
-    const x0 = new Int32Array(w), x1 = new Int32Array(w), fx = new Float32Array(w);
-    for (let x = 0; x < w; x++) {
-      const gx = clamp((x + 0.5) / B - 0.5, 0, gw - 1);
-      x0[x] = gx | 0; x1[x] = Math.min(gw - 1, x0[x] + 1); fx[x] = gx - x0[x];
-    }
-    const scale = new Float32Array(n);
-    for (let y = 0; y < h; y++) {
-      const gy = clamp((y + 0.5) / B - 0.5, 0, gh - 1), y0 = gy | 0, y1 = Math.min(gh - 1, y0 + 1), fy = gy - y0;
-      for (let x = 0; x < w; x++) {
-        const top = grid[y0 * gw + x0[x]] * (1 - fx[x]) + grid[y0 * gw + x1[x]] * fx[x];
-        const bot = grid[y1 * gw + x0[x]] * (1 - fx[x]) + grid[y1 * gw + x1[x]] * fx[x];
-        let bg = top * (1 - fy) + bot * fy;
-        if (bg < floorV) bg = floorV;
-        scale[y * w + x] = 255 / bg;
-      }
-    }
-
-    const BLACK = 0.10, WHITE = 0.90, curve = v => clamp((v / 255 - BLACK) / (WHITE - BLACK), 0, 1) * 255;
-    if (mode === 'auto') {
-      for (let i = 0, j = 0; i < n; i++, j += 4) {
-        const s = scale[i];
-        px[j] = curve(px[j] * s); px[j + 1] = curve(px[j + 1] * s); px[j + 2] = curve(px[j + 2] * s);
-      }
-      sharpenRGBA(px, w, h, 0.35);
-    } else {
-      const v = new Float32Array(n);
-      for (let i = 0; i < n; i++) v[i] = L[i] * scale[i];
-      sharpenF(v, w, h, 0.4);
-      for (let i = 0, j = 0; i < n; i++, j += 4) {
-        let o;
-        if (mode === 'bw') o = clamp((v[i] / 255 - 0.52) / (0.78 - 0.52), 0, 1) * 255;
-        else o = curve(v[i]);
-        px[j] = px[j + 1] = px[j + 2] = o;
-      }
-    }
-  }
-
-  return { detectQuad, warp, quadSize, filterImage, isConvex, polyArea, orderQuad };
-})();
-/* ==== CV END ==== */
-
-
-/* ================= settings ================= */
-const MAX_SRC = 3000;    // stored photo, longest edge
-const MAX_OUT = 2400;    // exported page, longest edge
-const DET_SIDE = 480;    // detection resolution on captured photos
-const LIVE_SIDE = 240;   // detection resolution on the live camera view
-const JPEG_Q = 0.85;
-const FULL = () => [[0, 0], [1, 0], [1, 1], [0, 1]];
-const $ = id => document.getElementById(id);
-
-/* ================= storage ================= */
-let db;
-const dbOpen = () => new Promise((res, rej) => {
-  const r = indexedDB.open('pdfscanner', 1);
-  r.onupgradeneeded = () => r.result.createObjectStore('pages', { keyPath: 'id' });
-  r.onsuccess = () => res(r.result);
-  r.onerror = () => rej(r.error);
-});
-const tx = (mode, fn) => new Promise((res, rej) => {
-  const t = db.transaction('pages', mode), s = t.objectStore('pages');
-  const out = fn(s);
-  t.oncomplete = () => res(out && out.result);
-  t.onerror = () => rej(t.error);
-});
-const dbAll = () => tx('readonly', s => s.getAll());
-const dbPut = p => tx('readwrite', s => s.put(p));
-const dbDel = id => tx('readwrite', s => s.delete(id));
-
-/* ================= state & helpers ================= */
-let pages = [], editIdx = 0;
-function toast(msg) {
-  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
-  clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 2600);
-}
-const newCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-const canvasBlob = (c, type = 'image/jpeg', q = JPEG_Q) => new Promise(r => c.toBlob(r, type, q));
-const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
-
-/* ================= detection glue ================= */
-// Detects the page in any drawable (canvas, bitmap, video). Returns 4 normalised corners or null.
-function detectIn(src, sw, sh, side) {
-  const s = Math.min(1, side / Math.max(sw, sh));
-  const w = Math.max(16, Math.round(sw * s)), h = Math.max(16, Math.round(sh * s));
-  const c = newCanvas(w, h), g = c.getContext('2d', { willReadFrequently: true });
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(src, 0, 0, w, h);
-  const res = CV.detectQuad(g.getImageData(0, 0, w, h).data, w, h);
-  return res ? res.quad.map(([x, y]) => [x / w, y / h]) : null;
-}
-
-/* ================= rendering pipeline (serialised) ================= */
-let chain = Promise.resolve();
-const enqueue = fn => { const r = chain.then(fn, fn); chain = r.catch(() => {}); return r; };
-let bmpCache = { id: null, bmp: null };
-async function getBitmap(p) {
-  if (bmpCache.id === p.id && bmpCache.blob === p.blob) return bmpCache.bmp;
-  if (bmpCache.bmp && bmpCache.bmp.close) bmpCache.bmp.close();
-  const bmp = await createImageBitmap(p.blob);
-  bmpCache = { id: p.id, blob: p.blob, bmp };
-  return bmp;
-}
-
-// photo -> perspective-corrected page -> readability filter -> rotation
-function renderPage(p, maxSide) {
-  return enqueue(async () => {
-    const bmp = await getBitmap(p), sw = bmp.width, sh = bmp.height;
-    let q = p.corners.map(([x, y]) => [x * sw, y * sh]);
-    const [qw, qh] = CV.quadSize(q), longQ = Math.max(qw, qh, 1);
-    const outLong = Math.min(maxSide, Math.round(longQ)), sc = outLong / longQ;
-    const ow = Math.max(8, Math.round(qw * sc)), oh = Math.max(8, Math.round(qh * sc));
-    const f = sc < 0.6 ? Math.min(1, sc * 1.6) : 1;               // pre-shrink for smooth downscaling
-    const cw = Math.max(1, Math.round(sw * f)), ch = Math.max(1, Math.round(sh * f));
-    const c0 = newCanvas(cw, ch), g0 = c0.getContext('2d', { willReadFrequently: true });
-    g0.imageSmoothingQuality = 'high';
-    g0.drawImage(bmp, 0, 0, cw, ch);
-    q = q.map(([x, y]) => [x * cw / sw, y * ch / sh]);
-    const out = CV.warp(g0.getImageData(0, 0, cw, ch).data, cw, ch, q, ow, oh);
-    if (!out) throw new Error('Bad corners');
-    CV.filterImage(out, ow, oh, p.filter);
-    const c = newCanvas(ow, oh);
-    c.getContext('2d').putImageData(new ImageData(out, ow, oh), 0, 0);
-    if (!p.rot) return c;
-    const swap = p.rot % 180 !== 0, r = newCanvas(swap ? oh : ow, swap ? ow : oh), g = r.getContext('2d');
-    g.translate(r.width / 2, r.height / 2); g.rotate(p.rot * Math.PI / 180); g.drawImage(c, -ow / 2, -oh / 2);
-    return r;
-  });
-}
-
-/* ================= thumbnails & grid ================= */
-const thumbs = new Map();
-const pageKey = p => [p.filter, p.rot, p.corners.map(c => c.map(v => v.toFixed(4)).join(',')).join(';')].join('|');
-async function thumbFor(p) {
-  const key = pageKey(p), t = thumbs.get(p.id);
-  if (t && t.key === key) return t.url;
-  const c = await renderPage(p, 360);
-  const url = URL.createObjectURL(await canvasBlob(c, 'image/jpeg', 0.75));
-  if (t) URL.revokeObjectURL(t.url);
-  thumbs.set(p.id, { key, url });
-  return url;
-}
-
-let refreshGen = 0;
-async function refresh() {
-  const gen = ++refreshGen;
-  pages.sort((a, b) => a.order - b.order);
-  const grid = $('grid'); grid.innerHTML = '';
-  $('empty').style.display = pages.length ? 'none' : 'block';
-  $('btnPdf').disabled = !pages.length;
-  $('btnClear').hidden = !pages.length;
-  $('count').textContent = pages.length ? pages.length + (pages.length === 1 ? ' page' : ' pages') : '';
-  const todo = [];
-  pages.forEach((p, i) => {
-    const card = document.createElement('div'); card.className = 'card';
-    const img = document.createElement('img'); img.alt = 'Page ' + (i + 1);
-    const badge = document.createElement('b'); badge.textContent = i + 1;
-    card.append(img, badge);
-    if (!p.detected) { const w = document.createElement('i'); w.textContent = 'Check crop'; card.append(w); }
-    card.onclick = () => openEdit(i);
-    grid.append(card);
-    const t = thumbs.get(p.id);
-    if (t && t.key === pageKey(p)) img.src = t.url; else todo.push([p, img]);
-  });
-  for (const [p, img] of todo) {
-    if (gen !== refreshGen) return;
-    try { img.src = await thumbFor(p); } catch { /* ignore */ }
-  }
-}
-
-/* ================= adding pages ================= */
-async function addSource(src, w0, h0) {
-  const s = Math.min(1, MAX_SRC / Math.max(w0, h0)), w = Math.round(w0 * s), h = Math.round(h0 * s);
-  const c = newCanvas(w, h), g = c.getContext('2d');
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(src, 0, 0, w, h);
-  const found = detectIn(c, w, h, DET_SIDE);
-  const blob = await canvasBlob(c, 'image/jpeg', 0.9);
-  const order = pages.length ? Math.max(...pages.map(p => p.order)) + 1 : 0;
-  const p = { id: uid(), order, blob, corners: found || FULL(), detected: !!found, filter: 'auto', rot: 0 };
-  pages.push(p);
-  await dbPut(p);
-  return p;
-}
-async function addBlob(blob) {
-  const bmp = await createImageBitmap(blob);
-  try { return await addSource(bmp, bmp.width, bmp.height); } finally { bmp.close && bmp.close(); }
-}
-
-$('btnImp').onclick = () => $('file').click();
-$('file').onchange = async e => {
-  const files = [...e.target.files]; e.target.value = '';
-  if (!files.length) return;
-  toast('Finding page edges…');
-  let bad = 0;
-  for (const f of files) { try { await addBlob(f); } catch { bad++; } }
-  await refresh();
-  const unsure = pages.filter(p => !p.detected).length;
-  toast(bad ? bad + ' file(s) could not be read' : unsure ? 'Some pages need a quick crop check' : 'Added ' + files.length + (files.length === 1 ? ' page' : ' pages'));
-};
-$('btnClear').onclick = async () => {
-  if (!confirm('Remove all scanned pages from the app?')) return;
-  for (const p of pages) await dbDel(p.id);
-  pages = []; thumbs.forEach(t => URL.revokeObjectURL(t.url)); thumbs.clear(); refresh();
-};
-
-/* ================= camera with live page outline ================= */
-let stream = null, shots = 0, liveOn = false, liveQuad = null, miss = 0, busy = false, torchOn = false;
-const liveCanvas = newCanvas(LIVE_SIDE, LIVE_SIDE);
-
-$('btnCam').onclick = async () => {
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } }, audio: false
-    });
-  } catch {
-    toast('Camera unavailable — opening photo picker');
-    const f = $('file'); f.setAttribute('capture', 'environment'); f.click();
-    setTimeout(() => f.removeAttribute('capture'), 1000);
-    return;
-  }
-  const v = $('vid'); v.srcObject = stream; await v.play();
-  const track = stream.getVideoTracks()[0];
-  try {
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (caps.focusMode && caps.focusMode.includes('continuous')) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-    $('torch').hidden = !caps.torch;
-  } catch { /* optional */ }
-  torchOn = false; shots = 0; liveQuad = null; miss = 0;
-  $('camCount').textContent = '0 pages';
-  $('cam').classList.add('on');
-  liveOn = true; liveLoop();
-};
-$('torch').onclick = async () => {
-  torchOn = !torchOn;
-  try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: torchOn }] }); } catch { torchOn = false; }
-  $('torch').classList.toggle('sel', torchOn);
-};
-
-function liveLoop() {
-  if (!liveOn) return;
-  const v = $('vid');
-  if (v.videoWidth) {
-    try {
-      const q = detectIn(v, v.videoWidth, v.videoHeight, LIVE_SIDE);
-      if (q) {
-        miss = 0;
-        const near = liveQuad && q.every((p, i) => Math.hypot(p[0] - liveQuad[i][0], p[1] - liveQuad[i][1]) < 0.08);
-        liveQuad = near ? q.map((p, i) => [(p[0] + liveQuad[i][0]) / 2, (p[1] + liveQuad[i][1]) / 2]) : q;
-      } else if (++miss > 2) liveQuad = null;
-      drawLive();
-    } catch { /* keep going */ }
-  }
-  setTimeout(liveLoop, 260);
-}
-function drawLive() {
-  const v = $('vid'), st = $('camStage'), cv = $('live');
-  const vr = v.getBoundingClientRect(), sr = st.getBoundingClientRect();
-  cv.style.left = (vr.left - sr.left) + 'px'; cv.style.top = (vr.top - sr.top) + 'px';
-  cv.style.width = vr.width + 'px'; cv.style.height = vr.height + 'px';
-  const dpr = window.devicePixelRatio || 1;
-  cv.width = Math.round(vr.width * dpr); cv.height = Math.round(vr.height * dpr);
-  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, vr.width, vr.height);
-  const hint = $('camHint');
-  if (!liveQuad) { hint.textContent = 'Looking for the page…'; hint.className = ''; return; }
-  g.beginPath();
-  liveQuad.forEach(([x, y], i) => i ? g.lineTo(x * vr.width, y * vr.height) : g.moveTo(x * vr.width, y * vr.height));
-  g.closePath();
-  g.fillStyle = 'rgba(74,222,128,.18)'; g.fill();
-  g.lineWidth = 3; g.strokeStyle = '#4ade80'; g.stroke();
-  hint.textContent = 'Page found — tap to capture'; hint.className = 'ok';
-}
-
-$('shutter').onclick = async () => {
-  if (busy) return;
-  const v = $('vid'); if (!v.videoWidth) return;
-  busy = true;
-  const fl = $('flash'); fl.style.opacity = .8; setTimeout(() => fl.style.opacity = 0, 80);
-  try {
-    await addSource(v, v.videoWidth, v.videoHeight);
-    shots++; $('camCount').textContent = shots + (shots === 1 ? ' page' : ' pages');
-    if (navigator.vibrate) navigator.vibrate(25);
-  } catch { toast('Capture failed'); }
-  busy = false;
-};
-$('camClose').onclick = () => {
-  liveOn = false;
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; $('cam').classList.remove('on'); refresh();
-};
-
-/* ================= page editor ================= */
-const stage = $('editStage');
-function openEdit(i) { editIdx = i; $('edit').classList.add('on'); showPage(); }
-async function showPage() {
-  stage.classList.remove('zoomed');
-  const p = pages[editIdx];
-  $('editTitle').textContent = 'Page ' + (editIdx + 1) + ' of ' + pages.length;
-  $('prevPg').style.visibility = editIdx > 0 ? '' : 'hidden';
-  $('nextPg').style.visibility = editIdx < pages.length - 1 ? '' : 'hidden';
-  document.querySelectorAll('[data-f]').forEach(b => b.classList.toggle('sel', b.dataset.f === p.filter));
-  await paintEdit();
-}
-let paintGen = 0;
-async function paintEdit() {
-  const gen = ++paintGen, p = pages[editIdx], cv = $('prevCanvas');
-  cv.style.opacity = .45;
-  try {
-    const c = await renderPage(p, 1500);
-    if (gen !== paintGen) return;
-    cv.width = c.width; cv.height = c.height; cv.getContext('2d').drawImage(c, 0, 0);
-    cv.style.opacity = 1;
-  } catch { toast('Could not render — adjust the crop'); cv.style.opacity = 1; }
-}
-$('prevPg').onclick = () => { if (editIdx > 0) { editIdx--; showPage(); } };
-$('nextPg').onclick = () => { if (editIdx < pages.length - 1) { editIdx++; showPage(); } };
-
-// tap to zoom for checking readability; swipe to change page
-let sx = 0, sy = 0, st0 = 0;
-stage.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; st0 = Date.now(); }, { passive: true });
-stage.addEventListener('touchend', e => {
-  if (stage.classList.contains('zoomed')) return;
-  const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
-  if (Math.abs(dx) > 70 && Math.abs(dy) < 50 && Date.now() - st0 < 600) (dx < 0 ? $('nextPg') : $('prevPg')).click();
-}, { passive: true });
-$('prevCanvas').onclick = e => {
-  const cv = $('prevCanvas');
-  if (stage.classList.contains('zoomed')) { stage.classList.remove('zoomed'); cv.style.width = ''; return; }
-  const r = cv.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
-  stage.classList.add('zoomed');
-  cv.style.width = Math.min(cv.width, stage.clientWidth * 2.6) + 'px';
-  stage.scrollLeft = fx * cv.clientWidth - stage.clientWidth / 2;
-  stage.scrollTop = fy * cv.clientHeight - stage.clientHeight / 2;
-};
-
-document.querySelectorAll('[data-f]').forEach(b => b.onclick = async () => {
-  const p = pages[editIdx]; p.filter = b.dataset.f; await dbPut(p); showPage();
-});
-$('rotL').onclick = async () => { const p = pages[editIdx]; p.rot = (p.rot + 270) % 360; await dbPut(p); paintEdit(); };
-$('rotR').onclick = async () => { const p = pages[editIdx]; p.rot = (p.rot + 90) % 360; await dbPut(p); paintEdit(); };
-async function move(dir) {
-  pages.sort((a, b) => a.order - b.order);
-  const j = editIdx + dir;
-  if (j < 0 || j >= pages.length) return;
-  const a = pages[editIdx], b = pages[j];
-  [a.order, b.order] = [b.order, a.order];
-  await dbPut(a); await dbPut(b);
-  pages.sort((x, y) => x.order - y.order); editIdx = j; showPage();
-}
-$('mvL').onclick = () => move(-1);
-$('mvR').onclick = () => move(1);
-$('del').onclick = async () => {
-  if (!confirm('Delete this page?')) return;
-  const p = pages[editIdx]; await dbDel(p.id);
-  const t = thumbs.get(p.id); if (t) { URL.revokeObjectURL(t.url); thumbs.delete(p.id); }
-  pages.splice(editIdx, 1);
-  if (!pages.length) { $('edit').classList.remove('on'); refresh(); return; }
-  editIdx = Math.min(editIdx, pages.length - 1); showPage();
-};
-$('editClose').onclick = () => { $('edit').classList.remove('on'); refresh(); };
-
-/* ================= manual crop (corner editor with magnifier) ================= */
-const crop = { bmp: null, disp: null, pts: null, scale: 1, ox: 0, oy: 0, dw: 0, dh: 0, dpr: 1, drag: null };
-
-async function openCrop() {
-  const p = pages[editIdx];
-  crop.bmp = await createImageBitmap(p.blob);
-  crop.pts = p.corners.map(c => c.slice());
-  $('crop').classList.add('on');
-  layoutCrop();
-}
-function layoutCrop() {
-  if (!crop.bmp) return;
-  const st = $('cropStage'), cv = $('cropCanvas'), W = st.clientWidth, H = st.clientHeight, dpr = window.devicePixelRatio || 1;
-  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px';
-  const pad = 26, s = Math.min((W - 2 * pad) / crop.bmp.width, (H - 2 * pad) / crop.bmp.height);
-  Object.assign(crop, { scale: s, dw: crop.bmp.width * s, dh: crop.bmp.height * s, dpr });
-  crop.ox = (W - crop.dw) / 2; crop.oy = (H - crop.dh) / 2;
-  const d = newCanvas(Math.round(crop.dw * dpr), Math.round(crop.dh * dpr)), g = d.getContext('2d');
-  g.imageSmoothingQuality = 'high'; g.drawImage(crop.bmp, 0, 0, d.width, d.height);
-  crop.disp = d;
-  drawCrop();
-}
-const toScr = pt => [crop.ox + pt[0] * crop.dw, crop.oy + pt[1] * crop.dh];
-function handles() {
-  const c = crop.pts.map(toScr), out = c.map((p, i) => ({ p, kind: 'c', i }));
-  for (let i = 0; i < 4; i++) { const a = c[i], b = c[(i + 1) % 4]; out.push({ p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], kind: 'm', i }); }
-  return out;
-}
-function drawCrop() {
-  const cv = $('cropCanvas'), g = cv.getContext('2d'), W = cv.width / crop.dpr, H = cv.height / crop.dpr;
-  g.setTransform(crop.dpr, 0, 0, crop.dpr, 0, 0); g.clearRect(0, 0, W, H);
-  g.drawImage(crop.disp, crop.ox, crop.oy, crop.dw, crop.dh);
-  const c = crop.pts.map(toScr), ok = CV.isConvex(crop.pts);
-  g.beginPath(); g.rect(crop.ox, crop.oy, crop.dw, crop.dh);
-  g.moveTo(...c[0]); for (let i = 1; i < 4; i++) g.lineTo(...c[i]); g.closePath();
-  g.fillStyle = 'rgba(0,0,0,.5)'; g.fill('evenodd');
-  g.beginPath(); g.moveTo(...c[0]); for (let i = 1; i < 4; i++) g.lineTo(...c[i]); g.closePath();
-  g.lineWidth = 2; g.strokeStyle = ok ? '#38bdf8' : '#f87171'; g.stroke();
-  for (const h of handles()) {
-    g.beginPath(); g.arc(h.p[0], h.p[1], h.kind === 'c' ? 13 : 8, 0, Math.PI * 2);
-    g.fillStyle = h.kind === 'c' ? '#38bdf8' : '#fff'; g.fill();
-    g.lineWidth = 2; g.strokeStyle = h.kind === 'c' ? '#fff' : '#38bdf8'; g.stroke();
-  }
-}
-function drawLoupe(pt) {
-  const L = $('loupe'), g = L.getContext('2d'), R = L.width, zoom = 3;
-  const srcSize = R / (crop.scale * zoom), cx = pt[0] * crop.bmp.width, cy = pt[1] * crop.bmp.height;
-  g.fillStyle = '#000'; g.fillRect(0, 0, R, R);
-  g.drawImage(crop.bmp, cx - srcSize / 2, cy - srcSize / 2, srcSize, srcSize, 0, 0, R, R);
-  g.strokeStyle = '#38bdf8'; g.lineWidth = 2;
-  g.beginPath(); g.moveTo(R / 2, R / 2 - 22); g.lineTo(R / 2, R / 2 + 22); g.moveTo(R / 2 - 22, R / 2); g.lineTo(R / 2 + 22, R / 2); g.stroke();
-}
-const cc = $('cropCanvas');
-const posOf = e => { const r = cc.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-cc.addEventListener('pointerdown', e => {
-  const m = posOf(e); let best = null, bd = 44;
-  for (const h of handles()) {
-    const d = Math.hypot(h.p[0] - m[0], h.p[1] - m[1]) - (h.kind === 'c' ? 6 : 0);
-    if (d < bd) { bd = d; best = h; }
-  }
-  if (!best) return;
-  crop.drag = { h: best, m, start: crop.pts.map(p => p.slice()) };
-  cc.setPointerCapture(e.pointerId); e.preventDefault();
-  moveLoupe(best.p, m);
-});
-cc.addEventListener('pointermove', e => {
-  const d = crop.drag; if (!d) return;
-  const m = posOf(e), dx = (m[0] - d.m[0]) / crop.dw, dy = (m[1] - d.m[1]) / crop.dh, cl = v => Math.max(0, Math.min(1, v));
-  const { kind, i } = d.h;
-  if (kind === 'c') crop.pts[i] = [cl(d.start[i][0] + dx), cl(d.start[i][1] + dy)];
-  else {
-    const j = (i + 1) % 4, a = d.start[i], b = d.start[j];
-    const ddx = Math.max(-Math.min(a[0], b[0]), Math.min(1 - Math.max(a[0], b[0]), dx));
-    const ddy = Math.max(-Math.min(a[1], b[1]), Math.min(1 - Math.max(a[1], b[1]), dy));
-    crop.pts[i] = [a[0] + ddx, a[1] + ddy]; crop.pts[j] = [b[0] + ddx, b[1] + ddy];
-  }
-  drawCrop();
-  const pt = kind === 'c' ? crop.pts[i] : [(crop.pts[i][0] + crop.pts[(i + 1) % 4][0]) / 2, (crop.pts[i][1] + crop.pts[(i + 1) % 4][1]) / 2];
-  moveLoupe(toScr(pt), m); drawLoupe(pt);
-  e.preventDefault();
-});
-function moveLoupe(handleScr, finger) {
-  const L = $('loupe');
-  L.style.display = 'block';
-  const nearTL = handleScr[0] < 170 && handleScr[1] < 170;
-  L.style.left = nearTL ? '' : '8px'; L.style.right = nearTL ? '8px' : '';
-}
-const endDrag = () => { crop.drag = null; $('loupe').style.display = 'none'; drawCrop(); };
-cc.addEventListener('pointerup', endDrag);
-cc.addEventListener('pointercancel', endDrag);
-
-$('editCrop').onclick = openCrop;
-$('cropAuto').onclick = () => {
-  const q = detectIn(crop.bmp, crop.bmp.width, crop.bmp.height, DET_SIDE);
-  if (q) { crop.pts = q; drawCrop(); toast('Page edges found'); }
-  else toast('No clear page edges — drag the corners yourself');
-};
-$('cropFull').onclick = () => { crop.pts = FULL(); drawCrop(); };
-function closeCrop() { $('crop').classList.remove('on'); $('loupe').style.display = 'none'; if (crop.bmp && crop.bmp.close) crop.bmp.close(); crop.bmp = null; }
-$('cropCancel').onclick = closeCrop;
-$('cropApply').onclick = async () => {
-  if (!CV.isConvex(crop.pts) || CV.polyArea(crop.pts) < 0.02) { toast('Corners are crossed — drag them back into a page shape'); return; }
-  const p = pages[editIdx];
-  p.corners = crop.pts.map(c => c.slice()); p.detected = true;
-  await dbPut(p); closeCrop(); showPage();
-};
-window.addEventListener('resize', () => { if (crop.bmp) layoutCrop(); });
-
-/* ================= PDF export (JPEG pages, no dependencies) ================= */
-function buildPdf(imgs) { // imgs: [{jpeg:Uint8Array, w, h}]
-  const enc = new TextEncoder(), chunks = [], offsets = [];
-  let len = 0;
-  const push = d => { const u = typeof d === 'string' ? enc.encode(d) : d; chunks.push(u); len += u.length; };
-  const obj = (n, body) => { offsets[n] = len; push(n + ' 0 obj\n'); body(); push('\nendobj\n'); };
-  const PW = 595; // A4 width in points; height follows each scan's aspect ratio
-  push('%PDF-1.4\n');
-  const kids = imgs.map((_, i) => (3 + i * 3) + ' 0 R').join(' ');
-  obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
-  obj(2, () => push(`<< /Type /Pages /Kids [${kids}] /Count ${imgs.length} >>`));
-  imgs.forEach((im, i) => {
-    const pg = 3 + i * 3, ig = pg + 1, ct = pg + 2;
-    const ph = +(PW * im.h / im.w).toFixed(2);
-    obj(pg, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${ph}] /Resources << /XObject << /Im0 ${ig} 0 R >> >> /Contents ${ct} 0 R >>`));
-    obj(ig, () => {
-      push(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.jpeg.length} >>\nstream\n`);
-      push(im.jpeg); push('\nendstream');
-    });
-    const content = `q ${PW} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
-    obj(ct, () => push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
-  });
-  const total = 3 + imgs.length * 3, xref = len;
-  push(`xref\n0 ${total}\n0000000000 65535 f \n`);
-  for (let n = 1; n < total; n++) push(String(offsets[n]).padStart(10, '0') + ' 00000 n \n');
-  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
-  return new Blob(chunks, { type: 'application/pdf' });
-}
-
-$('btnPdf').onclick = async () => {
-  const btn = $('btnPdf'); btn.disabled = true;
-  try {
-    pages.sort((a, b) => a.order - b.order);
-    const imgs = [];
-    for (const [i, p] of pages.entries()) {
-      btn.textContent = `Page ${i + 1}/${pages.length}…`;
-      const c = await renderPage(p, MAX_OUT);
-      const b = await canvasBlob(c);
-      imgs.push({ jpeg: new Uint8Array(await b.arrayBuffer()), w: c.width, h: c.height });
-    }
-    const pdf = buildPdf(imgs);
-    const name = 'scan-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.pdf';
-    const file = new File([pdf], name, { type: 'application/pdf' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: name }); }
-      catch (e) { if (e.name !== 'AbortError') throw e; }
-    } else {
-      const a = document.createElement('a'); a.href = URL.createObjectURL(pdf); a.download = name; a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    }
-    if (confirm('PDF saved. Clear scanned pages from the app?')) {
-      for (const p of pages) await dbDel(p.id);
-      pages = []; thumbs.forEach(t => URL.revokeObjectURL(t.url)); thumbs.clear(); refresh();
-    }
-  } catch (e) { toast('PDF failed: ' + e.message); }
-  btn.textContent = 'Save PDF'; btn.disabled = !pages.length;
-};
-
-/* ================= boot ================= */
-(async () => {
-  db = await dbOpen();
-  pages = (await dbAll()).map(p => {           // upgrade pages saved by the first version
-    if (!p.corners) { p.corners = FULL(); p.detected = true; }
-    if (p.filter === 'enhance') p.filter = 'auto';
-    if (p.detected === undefined) p.detected = true;
-    return p;
-  });
-  refresh();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
-})();
-</script>
+<script src="scanner.js"></script>
+<script src="pdf.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
