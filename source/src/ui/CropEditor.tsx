@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { detectCorners } from '../core/image';
-import type { Page, Pt } from '../core/types';
+import type { Page, PageShape, Pt } from '../core/types';
 import { Back, Check, Expand, Wand } from './icons';
 
 interface Props {
   page: Page;
-  onApply: (corners: Pt[]) => void;
+  onApply: (corners: Pt[], shape: PageShape) => void;
   onCancel: () => void;
   onError: (msg: string) => void;
 }
@@ -21,6 +21,7 @@ const LOUPE = 112;
 /** Drag the four corners to fit the paper. Handles have a 44px touch target and a magnifier. */
 export default function CropEditor({ page, onApply, onCancel, onError }: Props) {
   const [corners, setCorners] = useState<Pt[]>(page.corners);
+  const [shape, setShape] = useState<PageShape>(page.shape ?? 'auto');
   const [url, setUrl] = useState('');
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [drag, setDrag] = useState<number | null>(null);
@@ -82,7 +83,7 @@ export default function CropEditor({ page, onApply, onCancel, onError }: Props) 
       <header className="topbar">
         <button className="icon-btn" onClick={onCancel} aria-label="Cancel"><Back /></button>
         <h2>Adjust corners</h2>
-        <button className="btn primary small" onClick={() => onApply(corners)} disabled={busy}><Check size={18} /> Done</button>
+        <button className="btn primary small" onClick={() => onApply(corners, shape)} disabled={busy}><Check size={18} /> Done</button>
       </header>
 
       <div className="crop-stage" ref={wrap}>
@@ -129,6 +130,13 @@ export default function CropEditor({ page, onApply, onCancel, onError }: Props) 
             )}
           </div>
         )}
+      </div>
+
+      <div className="shape-row" role="radiogroup" aria-label="Page shape">
+        <span>Page shape</span>
+        {([['auto', 'Auto'], ['letter', 'Letter'], ['a4', 'A4'], ['free', 'As drawn']] as [PageShape, string][]).map(([v, t]) => (
+          <button key={v} role="radio" aria-checked={shape === v} className={'chip small' + (shape === v ? ' on' : '')} onClick={() => setShape(v)}>{t}</button>
+        ))}
       </div>
 
       <footer className="toolbar two">

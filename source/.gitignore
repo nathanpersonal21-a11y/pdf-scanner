@@ -3,3 +3,5 @@ dist
 test/out
 *.rgba
 .DS_Store
+public/ocr/
+public/opencv.js

@@ -6,6 +6,8 @@ import { Download, Share } from './icons';
 interface Props {
   pages: Page[];
   initialName: string;
+  readable: boolean;
+  ensurePages: () => Promise<Page[] | null>;
   onRename: (name: string) => void;
   onClose: () => void;
   onError: (m: string) => void;
@@ -24,7 +26,7 @@ function Seg<T extends string>({ label, value, options, onChange }: { label: str
   );
 }
 
-export default function ExportSheet({ pages, initialName, onRename, onClose, onError }: Props) {
+export default function ExportSheet({ pages, initialName, readable, ensurePages, onRename, onClose, onError }: Props) {
   const [name, setName] = useState(initialName);
   const [size, setSize] = useState<PageSize>('letter');
   const [mode, setMode] = useState<OutputMode>('color');
@@ -33,14 +35,20 @@ export default function ExportSheet({ pages, initialName, onRename, onClose, onE
   const [savedNote, setSavedNote] = useState('');
 
   // any option change invalidates a previously built PDF
-  useEffect(() => setResult(null), [name, size, mode, pages]);
+  useEffect(() => setResult(null), [name, size, mode, pages, readable]);
 
   const create = async () => {
     setProgress([0, pages.length]);
     setSavedNote('');
     try {
       const filename = safeName(name);
-      const bytes = await exportPdf(pages, { name: filename.replace(/\.pdf$/, ''), size, mode, onProgress: (d, t) => setProgress([d, t]) });
+      let use = pages;
+      if (readable) {
+        const ready = await ensurePages();
+        if (!ready) return;
+        use = ready;
+      }
+      const bytes = await exportPdf(use, { name: filename.replace(/\.pdf$/, ''), size, mode, readable, onProgress: (d, t) => setProgress([d, t]) });
       const blob = pdfBlob(bytes);
       setResult({ blob, file: new File([blob], filename, { type: 'application/pdf' }) });
       onRename(name);
@@ -81,7 +89,11 @@ export default function ExportSheet({ pages, initialName, onRename, onClose, onE
           </div>
         </div>
         <Seg label="Page size" value={size} onChange={setSize} options={[['letter', 'Letter'], ['a4', 'A4'], ['auto', 'Auto']]} />
-        <Seg label="Output" value={mode} onChange={setMode} options={[['color', 'Color'], ['gray', 'Grayscale'], ['bw', 'Black & White']]} />
+        {readable ? (
+          <p className="note">Readable text is on: every page is re-typeset with the same font, size and spacing as selectable text. Pages with no readable text keep a cleaned scan.</p>
+        ) : (
+          <Seg label="Output" value={mode} onChange={setMode} options={[['color', 'Color'], ['gray', 'Grayscale'], ['bw', 'Black & White']]} />
+        )}
         <p className="meta">{pages.length} page{pages.length === 1 ? '' : 's'}{result ? ` · ${mb} MB` : ''}</p>
 
         {!result && (

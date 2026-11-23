@@ -1,6 +1,6 @@
-import type { FilterId, Pt } from './cvcore';
+import type { FilterId, PageShape, Pt } from './cvcore';
 
-export type { FilterId, Pt };
+export type { FilterId, PageShape, Pt };
 export type OutputMode = 'color' | 'gray' | 'bw';
 export type PageSize = 'letter' | 'a4' | 'auto';
 
@@ -13,6 +13,24 @@ export interface Page {
   rotation: number; // 0 | 90 | 180 | 270, clockwise
   filter: FilterId;
   fingers: boolean; // remove fingers touching the page edge
+  shape?: PageShape; // page proportions: auto-estimate, Letter, A4, or exactly as drawn
+  ocr?: OcrPage; // cached text recognition (readable mode)
+}
+
+export interface OcrLine {
+  text: string;
+  h: number; // mean glyph height in px (font-size proxy; robust to ascenders and underlines)
+  r: number; // Tesseract row height estimate (cross-check against stray rules/lines)
+}
+export interface OcrPara {
+  lines: OcrLine[];
+}
+export interface OcrPage {
+  key: string; // identifies the page geometry this was read from
+  paras: OcrPara[];
+  medianH: number;
+  medianR: number;
+  words: number;
 }
 
 export interface Doc {
@@ -21,6 +39,7 @@ export interface Doc {
   updated: number;
   pages: Page[];
   thumb?: Blob;
+  readable?: boolean; // re-typeset all pages as uniform text
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

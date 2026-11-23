@@ -107,7 +107,7 @@ export function renderPage(page: Page, opts: RenderOpts = {}): Promise<HTMLCanva
     const src = await blobToMat(page.blob);
     let cur: any = null;
     try {
-      cur = warpDocument(src, page.corners, opts.maxSide ?? 2200);
+      cur = warpDocument(src, page.corners, opts.maxSide ?? 2200, page.shape ?? 'auto');
       if (!opts.raw) {
         if (page.fingers) removeFingers(cur);
         const f: FilterId = opts.mode === 'bw' ? 'bw' : opts.filter ?? page.filter;
@@ -129,7 +129,7 @@ export function renderPage(page: Page, opts: RenderOpts = {}): Promise<HTMLCanva
 
 const cache = new Map<string, string>();
 const keyOf = (p: Page, tag: string) =>
-  [p.id, tag, p.filter, p.fingers, p.rotation, p.corners.map((c) => c.x.toFixed(4) + ',' + c.y.toFixed(4)).join(';')].join('|');
+  [p.id, tag, p.filter, p.fingers, p.rotation, p.shape ?? 'auto', p.corners.map((c) => c.x.toFixed(4) + ',' + c.y.toFixed(4)).join(';')].join('|');
 
 /** Cached object URL of a rendered page (preview or thumbnail). */
 export async function previewUrl(page: Page, maxSide: number, raw = false): Promise<string> {

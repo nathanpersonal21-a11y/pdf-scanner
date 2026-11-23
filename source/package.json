@@ -8,13 +8,20 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "test:core": "node test/core.test.mjs"
+    "test:core": "node test/core.test.mjs",
+    "predev": "node scripts/copy-assets.mjs",
+    "prebuild": "node scripts/copy-assets.mjs",
+    "postinstall": "node scripts/copy-assets.mjs",
+    "test:hard": "node test/hard.test.mjs"
   },
   "dependencies": {
     "@techstark/opencv-js": "^5.0.0-release.1",
+    "@tesseract.js-data/eng": "^1.0.0",
     "pdf-lib": "^1.17.1",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

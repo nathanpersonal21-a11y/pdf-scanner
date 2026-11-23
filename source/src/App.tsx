@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadCV } from './core/cv';
 import { deleteDoc, listDocs, saveDoc } from './core/db';
 import { canvasToBlob, detectCorners, makeSource, renderPage } from './core/image';
-import { uid, type Doc, type FilterId, type Page, type Pt } from './core/types';
+import { ocrFresh, readPage } from './core/ocr';
+import { uid, type Doc, type FilterId, type Page, type PageShape, type Pt } from './core/types';
 import Camera from './ui/Camera';
 import CropEditor from './ui/CropEditor';
 import DocView from './ui/DocView';
@@ -29,6 +30,9 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<Doc | null>(null);
+  docRef.current = doc;
+  const ocrLock = useRef<Promise<unknown>>(Promise.resolve());
 
   const say = useCallback((m: string) => {
     setNotice(m);
@@ -54,6 +58,43 @@ export default function App() {
     }, 800);
     return () => window.clearTimeout(t);
   }, [doc]);
+
+
+  /** Reads every page whose text is missing or out of date (crop/rotate changed). Returns pages with text, or null on failure. */
+  const ensureOcr = useCallback((): Promise<Page[] | null> => {
+    const run = ocrLock.current.then(async (): Promise<Page[] | null> => {
+      const d = docRef.current;
+      if (!d) return null;
+      const todo = d.pages.filter((p) => !ocrFresh(p));
+      const got = new Map<string, Page['ocr']>();
+      for (let i = 0; i < todo.length; i++) {
+        const label = `Reading page ${i + 1} of ${todo.length}…`;
+        setBusy(label);
+        try {
+          const o = await readPage(todo[i], (f) => setBusy(`${label} ${Math.round(f * 100)}%`));
+          got.set(todo[i].id, o);
+          setDoc((cur) => (cur ? { ...cur, pages: cur.pages.map((p) => (p.id === todo[i].id ? { ...p, ocr: o } : p)) } : cur));
+        } catch (e) {
+          setBusy('');
+          say(e instanceof Error ? e.message : 'Could not read the text on this page.');
+          return null;
+        }
+      }
+      setBusy('');
+      return d.pages.map((p) => (got.has(p.id) ? { ...p, ocr: got.get(p.id) } : p));
+    });
+    ocrLock.current = run.catch(() => undefined);
+    return run;
+  }, [say]);
+
+  // keep the readable text in step with edits (crop, rotate, shape, new pages)
+  useEffect(() => {
+    if (!doc?.readable || screen !== 'doc' || doc.pages.every(ocrFresh)) return;
+    const t = window.setTimeout(() => {
+      ensureOcr().then((r) => { if (!r) setDoc((d) => (d ? { ...d, readable: false } : d)); });
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [doc, screen, ensureOcr]);
 
   const mutate = (fn: (d: Doc) => Doc) => setDoc((d) => (d ? { ...fn(d), updated: Date.now() } : d));
   const patchPage = (id: string, patch: Partial<Page>) =>
@@ -185,7 +226,7 @@ export default function App() {
           page={page}
           onCancel={() => setScreen('doc')}
           onError={say}
-          onApply={(corners: Pt[]) => { patchPage(page.id, { corners }); setScreen('doc'); }}
+          onApply={(corners: Pt[], shape: PageShape) => { patchPage(page.id, { corners, shape }); setScreen('doc'); }}
         />
       )}
 
@@ -193,6 +234,7 @@ export default function App() {
         <DocView
           pages={doc.pages}
           sel={sel}
+          readable={!!doc.readable}
           setSel={setSel}
           onBack={goHome}
           onCrop={() => setScreen('crop')}
@@ -202,6 +244,7 @@ export default function App() {
           onAdd={() => setAddMenu(true)}
           onFilter={(f: FilterId) => patchPage(page.id, { filter: f })}
           onFingers={(on) => patchPage(page.id, { fingers: on })}
+          onReadable={(on) => mutate((d) => ({ ...d, readable: on }))}
           onMove={movePage}
           onExport={() => setExporting(true)}
         />
@@ -211,6 +254,8 @@ export default function App() {
         <ExportSheet
           pages={doc.pages}
           initialName={doc.name}
+          readable={!!doc.readable}
+          ensurePages={ensureOcr}
           onRename={(name) => mutate((d) => ({ ...d, name }))}
           onClose={() => setExporting(false)}
           onError={say}

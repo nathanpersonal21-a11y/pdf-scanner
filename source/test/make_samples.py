@@ -94,3 +94,44 @@ W, H = 1600, 1200
 gt = {n: [[x / W, y / H] for x, y in q] for n, q in [("sample1", quad1), ("sample2", quad2), ("sample3", quad3)]}
 json.dump(gt, open(f"{out}/truth.json", "w"))
 print("samples written")
+
+
+# ---------- hard cases: steep angle, hard shadow edge, specular glare ----------
+def photo_hard(page, quad, desk, glare=None, hard_shadow=None, size=(1600, 1200)):
+    img = photo(page, quad, desk, shadow=False, size=size)
+    arr = np.asarray(img).astype(np.float32)
+    H, W = arr.shape[:2]
+    yy, xx = np.mgrid[0:H, 0:W]
+    # page mask to confine effects to the paper
+    pw, ph = page.size
+    coeffs = find_coeffs(quad, [(0, 0), (pw, 0), (pw, ph), (0, ph)])
+    m = np.asarray(Image.new("L", page.size, 255).transform((W, H), Image.PERSPECTIVE, coeffs, Image.BILINEAR)).astype(np.float32) / 255
+    if hard_shadow:
+        (x0, y0), (x1, y1), dark = hard_shadow  # a line; one side darker, soft 6px edge
+        d = ((xx - x0) * (y1 - y0) - (yy - y0) * (x1 - x0)) / np.hypot(x1 - x0, y1 - y0)
+        f = 1 - (1 - dark) / (1 + np.exp(d / 5.0))
+        arr = arr * (1 - m[:, :, None] + m[:, :, None] * f[:, :, None])
+    if glare:
+        gx, gy, gr = glare
+        g = np.exp(-(((xx - gx) / gr) ** 2 + ((yy - gy) / (gr * 0.7)) ** 2))
+        arr = arr + (255 - arr) * (0.95 * g * m)[:, :, None]
+    return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.5))
+
+pg = make_page("QUARTERLY REPORT", seed=11)
+q4 = project(10, 52, 6, 0.0, 0.0, 1.5)      # steep pitch: strong perspective
+img4 = photo_hard(pg, q4, (80, 60, 45), hard_shadow=((600, 200), (900, 1100), 0.55))
+img4.save(f"{out}/hard1.png")
+q5 = project(-24, 44, -10, 0.0, 0.0, 1.6)
+img5 = photo_hard(make_page("LEASE AGREEMENT", seed=12), q5, (60, 70, 80), glare=(850, 520, 110), hard_shadow=((300, 100), (500, 1100), 0.65))
+img5.save(f"{out}/hard2.png")
+q6 = project(28, 40, 3, 0.0, 0.0, 1.55)
+img6 = photo_hard(make_page("CLASS NOTES", seed=13), q6, (110, 100, 90), glare=(700, 600, 140))
+img6.save(f"{out}/hard3.png")
+gt2 = {n: [[x / W, y / H] for x, y in q] for n, q in [("hard1", q4), ("hard2", q5), ("hard3", q6)]}
+gt.update(gt2)
+json.dump(gt, open(f"{out}/truth.json", "w"))
+# keep the clean source pages for a pixel-level warp check
+make_page("QUARTERLY REPORT", seed=11).save(f"{out}/hard1_page.png")
+make_page("LEASE AGREEMENT", seed=12).save(f"{out}/hard2_page.png")
+make_page("CLASS NOTES", seed=13).save(f"{out}/hard3_page.png")
+print("hard samples written")

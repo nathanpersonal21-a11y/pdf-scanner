@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { previewUrl } from '../core/image';
+import { canvasToBlob, previewUrl } from '../core/image';
+import { ocrFresh } from '../core/ocr';
+import { layout, loadFonts, paint } from '../core/typeset';
 import { FILTERS, type FilterId, type Page } from '../core/types';
 import { Back, Compare, Crop, Download, Plus, Replace, Rotate, Trash } from './icons';
 import Strip from './Strip';
@@ -7,6 +9,7 @@ import Strip from './Strip';
 interface Props {
   pages: Page[];
   sel: number;
+  readable: boolean;
   setSel: (i: number) => void;
   onBack: () => void;
   onCrop: () => void;
@@ -16,6 +19,7 @@ interface Props {
   onAdd: () => void;
   onFilter: (f: FilterId) => void;
   onFingers: (on: boolean) => void;
+  onReadable: (on: boolean) => void;
   onMove: (from: number, to: number) => void;
   onExport: () => void;
 }
@@ -37,11 +41,47 @@ function usePreview(page: Page | undefined, raw: boolean) {
   return { url, loading };
 }
 
+/** Shows the uniformly re-typeset version of the selected scan (same font, size and spacing on every page). */
+function ReadablePreview({ pages, sel }: { pages: Page[]; sel: number }) {
+  const [urls, setUrls] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    const made: string[] = [];
+    (async () => {
+      const fonts = await loadFonts();
+      const laid = layout(pages, 'letter', fonts).filter((l) => l.scan === sel);
+      const out: string[] = [];
+      for (const lp of laid) {
+        if (lp.image) out.push(await previewUrl(pages[sel], 1400));
+        else {
+          const u = URL.createObjectURL(await canvasToBlob(paint(lp, 1.6), 'image/jpeg', 0.9));
+          made.push(u);
+          out.push(u);
+        }
+      }
+      if (live) setUrls(out);
+    })().catch(() => undefined);
+    return () => {
+      live = false;
+      made.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [pages, sel]);
+  return (
+    <div className="readable" data-testid="readable-preview">
+      {urls.map((u, i) => (
+        <img key={u} src={u} alt={`Readable text, page ${sel + 1}${urls.length > 1 ? ` part ${i + 1}` : ''}`} />
+      ))}
+      <p className="ocr-note">Text is read on your device and may contain mistakes. Check important details.</p>
+    </div>
+  );
+}
+
 export default function DocView(p: Props) {
   const page = p.pages[p.sel];
+  const showReadable = p.readable && p.pages.every(ocrFresh);
   const after = usePreview(page, false);
   const [compare, setCompare] = useState(false);
-  const before = usePreview(compare ? page : undefined, true);
+  const before = usePreview(compare && !showReadable ? page : undefined, true);
   const [pos, setPos] = useState(50);
 
   if (!page) return null;
@@ -58,26 +98,35 @@ export default function DocView(p: Props) {
       </header>
 
       <div className="preview">
-        {after.url && (
-          <div className="cmp">
-            <img src={after.url} alt={`Page ${p.sel + 1}`} className="after" />
-            {compare && before.url && (
-              <>
-                <img src={before.url} alt="" className="before" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
-                <div className="cut" style={{ left: `${pos}%` }} />
-                <span className="tag l">Before</span>
-                <span className="tag r">After</span>
-                <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} aria-label="Before and after slider" />
-              </>
-            )}
-          </div>
+        {showReadable ? (
+          <ReadablePreview pages={p.pages} sel={p.sel} />
+        ) : (
+          after.url && (
+            <div className="cmp">
+              <img src={after.url} alt={`Page ${p.sel + 1}`} className="after" />
+              {compare && before.url && (
+                <>
+                  <img src={before.url} alt="" className="before" style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }} />
+                  <div className="cut" style={{ left: `${pos}%` }} />
+                  <span className="tag l">Before</span>
+                  <span className="tag r">After</span>
+                  <input type="range" min={0} max={100} value={pos} onChange={(e) => setPos(+e.target.value)} aria-label="Before and after slider" />
+                </>
+              )}
+            </div>
+          )
         )}
-        {after.loading && <div className="loading"><i /></div>}
+        {!showReadable && (
+          <button className={'chip float' + (compare ? ' on' : '')} onClick={() => setCompare((c) => !c)} aria-pressed={compare}>
+            <Compare size={18} /> Compare
+          </button>
+        )}
+        {after.loading && !showReadable && <div className="loading"><i /></div>}
       </div>
 
       <div className="filters" role="tablist" aria-label="Filters">
         {FILTERS.map((f) => (
-          <button key={f.id} role="tab" aria-selected={page.filter === f.id} className={'chip' + (page.filter === f.id ? ' on' : '')} onClick={() => p.onFilter(f.id)}>
+          <button key={f.id} role="tab" aria-selected={page.filter === f.id} className={'chip' + (page.filter === f.id ? ' on' : '')} onClick={() => p.onFilter(f.id)} disabled={p.readable}>
             {f.label}
           </button>
         ))}
@@ -87,9 +136,10 @@ export default function DocView(p: Props) {
           <input type="checkbox" checked={page.fingers} onChange={(e) => p.onFingers(e.target.checked)} />
           <span /> Remove fingers
         </label>
-        <button className={'chip ghost' + (compare ? ' on' : '')} onClick={() => setCompare((c) => !c)} aria-pressed={compare}>
-          <Compare size={18} /> Compare
-        </button>
+        <label className="switch">
+          <input type="checkbox" checked={p.readable} onChange={(e) => p.onReadable(e.target.checked)} />
+          <span /> Readable text
+        </label>
       </div>
 
       <Strip pages={p.pages} sel={p.sel} onSelect={p.setSel} onMove={p.onMove} onAdd={p.onAdd} />

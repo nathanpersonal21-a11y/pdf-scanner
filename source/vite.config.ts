@@ -13,6 +13,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
         maximumFileSizeToCacheInBytes: 25 * 1024 * 1024,
         navigateFallback: 'index.html',
+        globIgnores: ['ocr/**'],
+        // OCR engine (~7 MB) is cached the first time it is used, then works offline
+        runtimeCaching: [
+          { urlPattern: ({ url }) => url.pathname.includes('/ocr/'), handler: 'CacheFirst', options: { cacheName: 'ocr-engine', expiration: { maxEntries: 8 }, cacheableResponse: { statuses: [0, 200] } } },
+        ],
       },
       manifest: {
         name: 'DocScan',

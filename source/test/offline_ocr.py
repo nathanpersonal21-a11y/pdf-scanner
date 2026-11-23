@@ -1,0 +1,20 @@
+from playwright.sync_api import sync_playwright
+import os
+S=os.path.abspath("test/samples")
+with sync_playwright() as p:
+    b=p.chromium.launch(executable_path="/usr/bin/google-chrome",headless=True,args=["--no-sandbox"])
+    ctx=b.new_context(viewport={"width":390,"height":844},is_mobile=True,has_touch=True)
+    pg=ctx.new_page(); pg.goto("http://localhost:4173/")
+    pg.evaluate("navigator.serviceWorker.ready.then(()=>true)"); pg.wait_for_timeout(15000)
+    pg.reload(); pg.wait_for_selector("text=Scan Document"); pg.wait_for_function("!document.querySelector('.engine')",timeout=90000)
+    pg.set_input_files("input[type=file][multiple]",f"{S}/sample2.png"); pg.wait_for_selector(".preview img.after",timeout=60000)
+    pg.locator("label.switch:has-text('Readable text') input").check(force=True)
+    pg.wait_for_selector("[data-testid=readable-preview] img",timeout=240000)
+    print("online readable OK; ocr cache entries:", pg.evaluate("caches.open('ocr-engine').then(c=>c.keys()).then(k=>k.map(r=>r.url.split('/').pop()))"))
+    ctx.set_offline(True)
+    pg.reload(); pg.wait_for_selector("text=Scan Document",timeout=30000); pg.wait_for_function("!document.querySelector('.engine')",timeout=60000)
+    pg.set_input_files("input[type=file][multiple]",f"{S}/sample3.png"); pg.wait_for_selector(".preview img.after",timeout=60000)
+    pg.locator("label.switch:has-text('Readable text') input").check(force=True)
+    pg.wait_for_selector("[data-testid=readable-preview] img",timeout=240000)
+    print("OFFLINE READABLE OK: reloaded with no network and read a new page")
+    b.close()
