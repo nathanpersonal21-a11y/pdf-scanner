@@ -7,7 +7,7 @@ let workerP: Promise<any> | null = null;
 let progressCb: ((p: number) => void) | null = null;
 
 export const ocrKey = (p: Page) =>
-  [p.rotation, p.shape ?? 'auto', p.fingers, p.corners.map((c) => c.x.toFixed(3) + ',' + c.y.toFixed(3)).join(';')].join('|');
+  [p.rotation, p.fingers, p.corners.map((c) => c.x.toFixed(3) + ',' + c.y.toFixed(3)).join(';')].join('|');
 
 export const ocrFresh = (p: Page) => !!p.ocr && p.ocr.key === ocrKey(p);
 
@@ -48,7 +48,7 @@ function median(a: number[]) {
 
 /** Reads one page (cropped, flattened, shadow-free) and returns paragraphs of clean text. */
 export async function readPage(page: Page, onProgress?: (p: number) => void): Promise<OcrPage> {
-  const canvas = await renderPage(page, { maxSide: 2400, filter: 'document' });
+  const canvas = await renderPage(page, { maxSide: 2000, filter: 'document' });
   const png = await canvasToBlob(canvas, 'image/png');
   const worker = await getWorker();
   progressCb = onProgress ?? null;

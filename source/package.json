@@ -11,8 +11,7 @@
     "test:core": "node test/core.test.mjs",
     "predev": "node scripts/copy-assets.mjs",
     "prebuild": "node scripts/copy-assets.mjs",
-    "postinstall": "node scripts/copy-assets.mjs",
-    "test:hard": "node test/hard.test.mjs"
+    "postinstall": "node scripts/copy-assets.mjs"
   },
   "dependencies": {
     "@techstark/opencv-js": "^5.0.0-release.1",

@@ -208,106 +208,6 @@ function candidatesFromMask(mask: any, W: number, H: number, T: ReturnType<typeo
   return list;
 }
 
-
-// ---------- sub-pixel corner refinement ----------
-
-function median(a: number[]): number {
-  const b = [...a].sort((x, y) => x - y);
-  return b.length ? b[Math.floor(b.length / 2)] : 0;
-}
-
-/** Robust total-least-squares line through points (iteratively drops outliers). */
-function fitLineRobust(pts: Pt[]): { p: Pt; d: Pt } | null {
-  let use = pts;
-  let line: { p: Pt; d: Pt } | null = null;
-  for (let it = 0; it < 4; it++) {
-    if (use.length < 8) return line;
-    const mx = use.reduce((s, q) => s + q.x, 0) / use.length;
-    const my = use.reduce((s, q) => s + q.y, 0) / use.length;
-    let sxx = 0, syy = 0, sxy = 0;
-    for (const q of use) {
-      sxx += (q.x - mx) ** 2;
-      syy += (q.y - my) ** 2;
-      sxy += (q.x - mx) * (q.y - my);
-    }
-    const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
-    const d = { x: Math.cos(ang), y: Math.sin(ang) };
-    line = { p: { x: mx, y: my }, d };
-    const res = pts.map((q) => Math.abs((q.x - mx) * -d.y + (q.y - my) * d.x));
-    const thr = Math.max(1.2, 2.5 * median(res));
-    use = pts.filter((_, i) => res[i] <= thr);
-  }
-  return line;
-}
-
-/**
- * Snaps a rough quad (source pixels) onto the true paper edges: for each side, finds the strongest
- * brightness edge along many perpendicular profiles and fits a line, then intersects the 4 lines.
- */
-function refineQuad(src: any, quad: Pt[], T: ReturnType<typeof tracker>): Pt[] | null {
-  const sc = Math.min(1, 1400 / Math.max(src.cols, src.rows));
-  const g = T.t(new cv.Mat());
-  cv.cvtColor(src, g, cv.COLOR_RGBA2GRAY);
-  if (sc < 1) cv.resize(g, g, new cv.Size(Math.round(src.cols * sc), Math.round(src.rows * sc)), 0, 0, cv.INTER_AREA);
-  cv.GaussianBlur(g, g, new cv.Size(5, 5), 1.4, 1.4, cv.BORDER_REPLICATE);
-  const W = g.cols;
-  const H = g.rows;
-  const d8 = g.data as Uint8Array;
-  const at = (x: number, y: number) => {
-    if (x < 0 || y < 0 || x > W - 1.01 || y > H - 1.01) return -1;
-    const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
-    const i = y0 * W + x0;
-    return d8[i] * (1 - fx) * (1 - fy) + d8[i + 1] * fx * (1 - fy) + d8[i + W] * (1 - fx) * fy + d8[i + W + 1] * fx * fy;
-  };
-  const q = quad.map((p) => ({ x: p.x * sc, y: p.y * sc }));
-  const lines: ({ p: Pt; d: Pt } | null)[] = [];
-  for (let i = 0; i < 4; i++) {
-    const a = q[i];
-    const b = q[(i + 1) % 4];
-    const len = dist(a, b);
-    const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
-    const nrm = { x: -dir.y, y: dir.x };
-    const band = Math.min(40, Math.max(6, 0.04 * len));
-    type S = { pos: Pt; sign: number; mag: number };
-    const peaks: S[] = [];
-    for (let k = 0; k < 36; k++) {
-      const t = 0.08 + (0.84 * k) / 35;
-      const base = { x: a.x + dir.x * len * t, y: a.y + dir.y * len * t };
-      let best: S | null = null;
-      for (let o = -band; o <= band; o += 0.5) {
-        const v1 = at(base.x + nrm.x * (o + 2), base.y + nrm.y * (o + 2));
-        const v0 = at(base.x + nrm.x * (o - 2), base.y + nrm.y * (o - 2));
-        if (v1 < 0 || v0 < 0) continue;
-        const gr = v1 - v0;
-        if (!best || Math.abs(gr) > best.mag) best = { pos: { x: base.x + nrm.x * o, y: base.y + nrm.y * o }, sign: Math.sign(gr), mag: Math.abs(gr) };
-      }
-      if (best && best.mag >= 8) peaks.push(best);
-    }
-    if (peaks.length < 10) {
-      lines.push(null);
-      continue;
-    }
-    // all samples of one side must agree on edge polarity (paper bright→desk dark or vice versa)
-    const pos = peaks.filter((s) => s.sign > 0).length;
-    const sign = pos >= peaks.length / 2 ? 1 : -1;
-    const pts = peaks.filter((s) => s.sign === sign).map((s) => s.pos);
-    lines.push(fitLineRobust(pts));
-  }
-  const L = lines.map((l, i) => l ?? { p: q[i], d: { x: q[(i + 1) % 4].x - q[i].x, y: q[(i + 1) % 4].y - q[i].y } });
-  if (lines.filter(Boolean).length < 2) return null;
-  const out: Pt[] = [];
-  const maxMove = 0.07 * Math.max(W, H);
-  for (let i = 0; i < 4; i++) {
-    const A = L[(i + 3) % 4];
-    const B = L[i];
-    const c = lineIntersect(A.p, { x: A.p.x + A.d.x, y: A.p.y + A.d.y }, B.p, { x: B.p.x + B.d.x, y: B.p.y + B.d.y });
-    if (!c || dist(c, q[i]) > maxMove) return null;
-    out.push(c);
-  }
-  if (!anglesOk(out)) return null;
-  return out.map((p) => ({ x: p.x / sc, y: p.y / sc }));
-}
-
 export interface DetectResult {
   corners: Pt[]; // normalised 0..1, TL TR BR BL
   found: boolean;
@@ -375,12 +275,10 @@ export function detectQuad(src: any): DetectResult {
     cands.sort((a, b) => b.score - a.score);
     const best = cands[0];
     if (best && best.score > 0.15) {
-      const rough = best.quad.map((p) => ({ x: (p.x / W) * src.cols, y: (p.y / H) * src.rows }));
-      const fine = refineQuad(src, rough, T) ?? rough;
       return {
-        corners: fine.map((p) => ({
-          x: Math.min(1, Math.max(0, p.x / src.cols)),
-          y: Math.min(1, Math.max(0, p.y / src.rows)),
+        corners: best.quad.map((p) => ({
+          x: Math.min(1, Math.max(0, p.x / W)),
+          y: Math.min(1, Math.max(0, p.y / H)),
         })),
         found: true,
       };
@@ -434,47 +332,20 @@ export function estimateAspect(p: Pt[], imgW: number, imgH: number): number | nu
   return r > 0.2 && r < 5 ? r : null;
 }
 
-
-/** Snaps a width/height ratio to Letter / A4 / Legal (either orientation) when it is within `tol`. */
-export function snapPaper(r: number, tol: number): number | null {
-  const std = [8.5 / 11, 210 / 297, 8.5 / 14];
-  const portrait = r < 1;
-  const v = portrait ? r : 1 / r;
-  let best: number | null = null;
-  let bd = tol;
-  for (const s of std) {
-    const d = Math.abs(s / v - 1);
-    if (d < bd) {
-      bd = d;
-      best = s;
-    }
-  }
-  if (best === null) return r > 0.2 && r < 5 ? r : null; // not a standard size: trust the estimate
-  return portrait ? best : 1 / best;
-}
-
 /** Warps the quad (normalised corners) of `src` into a flat rectangle of the correct proportions. */
-export type PageShape = 'auto' | 'letter' | 'a4' | 'free';
-
-export function warpDocument(src: any, cornersN: Pt[], maxSide = 2200, shape: PageShape = 'auto'): any {
+export function warpDocument(src: any, cornersN: Pt[], maxSide = 2200): any {
   const T = tracker();
   try {
     const p = cornersN.map((c) => ({ x: c.x * src.cols, y: c.y * src.rows }));
     const [tl, tr, br, bl] = p;
     let w = Math.max(dist(tl, tr), dist(bl, br));
     let h = Math.max(dist(tl, bl), dist(tr, br));
-    const est = estimateAspect(p, src.cols, src.rows);
-    const naive = w / h;
-    let ratio: number | null;
-    if (shape === 'free') ratio = null;
-    else if (shape === 'letter' || shape === 'a4') {
-      const std = shape === 'letter' ? 8.5 / 11 : 210 / 297;
-      ratio = (est ?? naive) > 1 ? 1 / std : std;
-    } else ratio = snapPaper(est ?? naive, est ? 0.075 : 0.04);
+    const ratio = estimateAspect(p, src.cols, src.rows);
     if (ratio) {
-      // keep the longer measured side, derive the other from the (snapped) true aspect ratio
+      // keep the longer measured side, derive the other from the true aspect ratio
       if (w / h > ratio) w = h * ratio;
       else h = w / ratio;
+      if (w < 1 || h < 1) { w = Math.max(dist(tl, tr), dist(bl, br)); h = Math.max(dist(tl, bl), dist(tr, br)); }
     }
     const s = Math.min(1, maxSide / Math.max(w, h));
     w = Math.max(16, Math.round(w * s));
@@ -492,54 +363,46 @@ export function warpDocument(src: any, cornersN: Pt[], maxSide = 2200, shape: Pa
 
 // ---------- finger removal on the flattened page ----------
 
-/** Replaces masked pixels (small-scale mask) with inpainted surroundings, feathered. Mutates `mat`. */
-function blendInpaint(mat: any, small: any, fm: any, T: ReturnType<typeof tracker>, radius = 6) {
-  const rgb = T.t(new cv.Mat());
-  cv.cvtColor(small, rgb, cv.COLOR_RGBA2RGB);
-  const painted = T.t(new cv.Mat());
-  cv.inpaint(rgb, fm, painted, radius, cv.INPAINT_TELEA);
-  const paintedA = T.t(new cv.Mat());
-  cv.cvtColor(painted, paintedA, cv.COLOR_RGB2RGBA);
-
-  const big = T.t(new cv.Mat());
-  cv.resize(paintedA, big, new cv.Size(mat.cols, mat.rows), 0, 0, cv.INTER_LINEAR);
-  const maskBig = T.t(new cv.Mat());
-  cv.resize(fm, maskBig, new cv.Size(mat.cols, mat.rows), 0, 0, cv.INTER_LINEAR);
-  cv.GaussianBlur(maskBig, maskBig, new cv.Size(15, 15), 0, 0, cv.BORDER_DEFAULT);
-  const alpha = T.t(new cv.Mat());
-  maskBig.convertTo(alpha, cv.CV_32F, 1 / 255);
-  const alpha4 = T.t(new cv.Mat());
-  const av = T.t(new cv.MatVector());
-  for (let i = 0; i < 4; i++) av.push_back(alpha);
-  cv.merge(av, alpha4);
-
-  const a32 = T.t(new cv.Mat());
-  const b32 = T.t(new cv.Mat());
-  mat.convertTo(a32, cv.CV_32F);
-  big.convertTo(b32, cv.CV_32F);
-  const diff = T.t(new cv.Mat());
-  cv.subtract(b32, a32, diff);
-  cv.multiply(diff, alpha4, diff);
-  cv.add(a32, diff, a32);
-  a32.convertTo(mat, cv.CV_8U);
-}
-
-function smallOf(mat: any, T: ReturnType<typeof tracker>, side = 500) {
-  const scale = Math.min(1, side / Math.max(mat.cols, mat.rows));
-  const small = T.t(new cv.Mat());
-  cv.resize(mat, small, new cv.Size(Math.max(8, Math.round(mat.cols * scale)), Math.max(8, Math.round(mat.rows * scale))), 0, 0, cv.INTER_AREA);
-  return small;
-}
-
 /** Paints over finger blobs that overlap the page edges. Mutates and returns `mat`. */
 export function removeFingers(mat: any): any {
   const T = tracker();
   try {
-    const small = smallOf(mat, T);
+    const scale = Math.min(1, 500 / Math.max(mat.cols, mat.rows));
+    const small = T.t(new cv.Mat());
+    cv.resize(mat, small, new cv.Size(Math.max(8, Math.round(mat.cols * scale)), Math.max(8, Math.round(mat.rows * scale))), 0, 0, cv.INTER_AREA);
     const fm = fingerMaskSmall(small, T, 0.0015, 0.35);
     if (cv.countNonZero(fm) === 0) return mat;
-    cv.dilate(fm, fm, T.t(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(17, 17))));
-    blendInpaint(mat, small, fm, T, 6);
+    cv.dilate(fm, fm, T.t(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(11, 11))));
+
+    const rgb = T.t(new cv.Mat());
+    cv.cvtColor(small, rgb, cv.COLOR_RGBA2RGB);
+    const painted = T.t(new cv.Mat());
+    cv.inpaint(rgb, fm, painted, 6, cv.INPAINT_TELEA);
+    const paintedA = T.t(new cv.Mat());
+    cv.cvtColor(painted, paintedA, cv.COLOR_RGB2RGBA);
+
+    // upsample inpainted result + soft mask, then blend only inside the mask
+    const big = T.t(new cv.Mat());
+    cv.resize(paintedA, big, new cv.Size(mat.cols, mat.rows), 0, 0, cv.INTER_LINEAR);
+    const maskBig = T.t(new cv.Mat());
+    cv.resize(fm, maskBig, new cv.Size(mat.cols, mat.rows), 0, 0, cv.INTER_LINEAR);
+    cv.GaussianBlur(maskBig, maskBig, new cv.Size(15, 15), 0, 0, cv.BORDER_DEFAULT);
+    const alpha = T.t(new cv.Mat());
+    maskBig.convertTo(alpha, cv.CV_32F, 1 / 255);
+    const alpha4 = T.t(new cv.Mat());
+    const av = T.t(new cv.MatVector());
+    for (let i = 0; i < 4; i++) av.push_back(alpha);
+    cv.merge(av, alpha4);
+
+    const a32 = T.t(new cv.Mat());
+    const b32 = T.t(new cv.Mat());
+    mat.convertTo(a32, cv.CV_32F);
+    big.convertTo(b32, cv.CV_32F);
+    const diff = T.t(new cv.Mat());
+    cv.subtract(b32, a32, diff);
+    cv.multiply(diff, alpha4, diff);
+    cv.add(a32, diff, a32);
+    a32.convertTo(mat, cv.CV_8U);
     return mat;
   } finally {
     T.free();
@@ -550,75 +413,18 @@ export function removeFingers(mat: any): any {
 
 /** Estimates the illumination (paper colour incl. shadows) of a gray image, same size as input. */
 function illumination(gray: any, T: ReturnType<typeof tracker>): any {
-  const scale = Math.min(1, 560 / Math.max(gray.cols, gray.rows));
+  const scale = Math.min(1, 400 / Math.max(gray.cols, gray.rows));
   const sw = Math.max(8, Math.round(gray.cols * scale));
   const sh = Math.max(8, Math.round(gray.rows * scale));
   const small = T.t(new cv.Mat());
   cv.resize(gray, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
-  // 1) remove dark text with a grey-level closing (dilate then erode keeps shadow edges in place)
-  const k = Math.max(7, Math.round(Math.max(sw, sh) / 60)) | 1;
-  const ker = T.t(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(k, k)));
-  cv.morphologyEx(small, small, cv.MORPH_CLOSE, ker);
-  // 2) edge-aware smoothing: median removes specks, bilateral keeps hard shadow borders
+  const k = Math.max(5, Math.round(Math.max(sw, sh) / 45)) | 1;
+  cv.dilate(small, small, T.t(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(k, k))));
   cv.medianBlur(small, small, 2 * Math.floor(k / 2) + 1);
-  const bi = T.t(new cv.Mat());
-  cv.bilateralFilter(small, bi, 9, 18, 9, cv.BORDER_REPLICATE);
-  cv.GaussianBlur(bi, bi, new cv.Size(5, 5), 0, 0, cv.BORDER_REPLICATE);
+  cv.GaussianBlur(small, small, new cv.Size(2 * k + 1, 2 * k + 1), 0, 0, cv.BORDER_REPLICATE);
   const bg = T.t(new cv.Mat());
-  cv.resize(bi, bg, new cv.Size(gray.cols, gray.rows), 0, 0, cv.INTER_LINEAR);
+  cv.resize(small, bg, new cv.Size(gray.cols, gray.rows), 0, 0, cv.INTER_LINEAR);
   return bg;
-}
-
-/**
- * Brings back text that glare or hard shadows have washed out. Where a local neighbourhood holds
- * faint-but-real ink (small yet non-zero range), the range is stretched to full contrast; clean
- * regions and blank paper are left alone so noise is not amplified.
- */
-function recoverContrast(norm: any, T: ReturnType<typeof tracker>): any {
-  const scale = Math.min(1, 700 / Math.max(norm.cols, norm.rows));
-  const sw = Math.max(8, Math.round(norm.cols * scale));
-  const sh = Math.max(8, Math.round(norm.rows * scale));
-  const small = T.t(new cv.Mat());
-  cv.resize(norm, small, new cv.Size(sw, sh), 0, 0, cv.INTER_AREA);
-  const k = Math.max(9, Math.round(Math.max(sw, sh) / 55)) | 1;
-  const ker = T.t(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(k, k)));
-  const lo = T.t(new cv.Mat());
-  const hi = T.t(new cv.Mat());
-  cv.erode(small, lo, ker);
-  cv.dilate(small, hi, ker);
-  const g = 2 * k + 1;
-  cv.GaussianBlur(lo, lo, new cv.Size(g, g), 0, 0, cv.BORDER_REPLICATE);
-  cv.GaussianBlur(hi, hi, new cv.Size(g, g), 0, 0, cv.BORDER_REPLICATE);
-  const n = sw * sh;
-  const A = new Float32Array(n);
-  const B = new Float32Array(n);
-  const l8 = lo.data as Uint8Array;
-  const h8 = hi.data as Uint8Array;
-  for (let i = 0; i < n; i++) {
-    const range = Math.max(1, h8[i] - l8[i]);
-    // weight: 0 for blank paper (<10) and for healthy contrast (>110), ramping in between
-    const up = Math.min(1, Math.max(0, (range - 14) / 10));
-    const down = Math.min(1, Math.max(0, (110 - range) / 50));
-    const w = up * down;
-    const a = 235 / range;
-    const b = (-235 * l8[i]) / range + 10;
-    // paper (hi) maps to 245, ink (lo) to 10
-    A[i] = 1 + w * (a - 1);
-    B[i] = w * b;
-  }
-  const aS = T.t(cv.matFromArray(sh, sw, cv.CV_32F, Array.from(A)));
-  const bS = T.t(cv.matFromArray(sh, sw, cv.CV_32F, Array.from(B)));
-  const aB = T.t(new cv.Mat());
-  const bB = T.t(new cv.Mat());
-  cv.resize(aS, aB, new cv.Size(norm.cols, norm.rows), 0, 0, cv.INTER_LINEAR);
-  cv.resize(bS, bB, new cv.Size(norm.cols, norm.rows), 0, 0, cv.INTER_LINEAR);
-  const v = T.t(new cv.Mat());
-  norm.convertTo(v, cv.CV_32F);
-  cv.multiply(v, aB, v);
-  cv.add(v, bB, v);
-  const out = T.t(new cv.Mat());
-  v.convertTo(out, cv.CV_8U);
-  return out;
 }
 
 function normalizedGray(rgba: any, T: ReturnType<typeof tracker>): any {
@@ -627,7 +433,7 @@ function normalizedGray(rgba: any, T: ReturnType<typeof tracker>): any {
   const bg = illumination(gray, T);
   const norm = T.t(new cv.Mat());
   cv.divide(gray, bg, norm, 255, cv.CV_8U);
-  return recoverContrast(norm, T);
+  return norm;
 }
 
 function grayToRGBA(gray: any): any {

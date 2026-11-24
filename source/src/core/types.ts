@@ -1,6 +1,6 @@
-import type { FilterId, PageShape, Pt } from './cvcore';
+import type { FilterId, Pt } from './cvcore';
 
-export type { FilterId, PageShape, Pt };
+export type { FilterId, Pt };
 export type OutputMode = 'color' | 'gray' | 'bw';
 export type PageSize = 'letter' | 'a4' | 'auto';
 
@@ -13,14 +13,13 @@ export interface Page {
   rotation: number; // 0 | 90 | 180 | 270, clockwise
   filter: FilterId;
   fingers: boolean; // remove fingers touching the page edge
-  shape?: PageShape; // page proportions: auto-estimate, Letter, A4, or exactly as drawn
   ocr?: OcrPage; // cached text recognition (readable mode)
 }
 
 export interface OcrLine {
   text: string;
-  h: number; // mean glyph height in px (font-size proxy; robust to ascenders and underlines)
-  r: number; // Tesseract row height estimate (cross-check against stray rules/lines)
+  h: number; // mean glyph height in px (font-size proxy)
+  r: number; // Tesseract row height estimate
 }
 export interface OcrPara {
   lines: OcrLine[];

@@ -71,7 +71,7 @@ function ReadablePreview({ pages, sel }: { pages: Page[]; sel: number }) {
       {urls.map((u, i) => (
         <img key={u} src={u} alt={`Readable text, page ${sel + 1}${urls.length > 1 ? ` part ${i + 1}` : ''}`} />
       ))}
-      <p className="ocr-note">Text is read on your device and may contain mistakes. Check important details.</p>
+      <p className="ocr-note">Read on your device. May contain mistakes.</p>
     </div>
   );
 }

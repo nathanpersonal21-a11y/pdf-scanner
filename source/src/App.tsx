@@ -3,7 +3,7 @@ import { loadCV } from './core/cv';
 import { deleteDoc, listDocs, saveDoc } from './core/db';
 import { canvasToBlob, detectCorners, makeSource, renderPage } from './core/image';
 import { ocrFresh, readPage } from './core/ocr';
-import { uid, type Doc, type FilterId, type Page, type PageShape, type Pt } from './core/types';
+import { uid, type Doc, type FilterId, type Page, type Pt } from './core/types';
 import Camera from './ui/Camera';
 import CropEditor from './ui/CropEditor';
 import DocView from './ui/DocView';
@@ -87,7 +87,7 @@ export default function App() {
     return run;
   }, [say]);
 
-  // keep the readable text in step with edits (crop, rotate, shape, new pages)
+  // keep the readable text in step with edits (crop, rotate, new pages)
   useEffect(() => {
     if (!doc?.readable || screen !== 'doc' || doc.pages.every(ocrFresh)) return;
     const t = window.setTimeout(() => {
@@ -226,7 +226,7 @@ export default function App() {
           page={page}
           onCancel={() => setScreen('doc')}
           onError={say}
-          onApply={(corners: Pt[], shape: PageShape) => { patchPage(page.id, { corners, shape }); setScreen('doc'); }}
+          onApply={(corners: Pt[]) => { patchPage(page.id, { corners }); setScreen('doc'); }}
         />
       )}
 
